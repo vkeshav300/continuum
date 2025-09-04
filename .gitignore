@@ -1,0 +1,8 @@
+# Compiling artifacts
+build/
+
+# OS artifacts
+.DS_Store
+
+# Editor / IDE artifacts
+.vscode/
