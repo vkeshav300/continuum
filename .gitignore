@@ -1,4 +1,7 @@
-# Compiling artifacts
+# Compiler artifacts
+.cache/
+
+# Building artifacts
 build/
 
 # OS artifacts
