@@ -3,10 +3,14 @@
  */
 #include <iostream>
 
-#include "rhi/window.hpp"
+#include "rhi/renderer.hpp"
 
-int main(int argc, char *argv[])
-{
-    std::cout << "Continuum v0.0.0\n";
-    return 0;
+int main(int argc, char *argv[]) {
+  std::cout << "Continuum v0.0.0\n";
+
+  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer();
+  renderer.stage();
+  renderer.render();
+
+  return 0;
 }
