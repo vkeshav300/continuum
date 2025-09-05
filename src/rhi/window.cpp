@@ -38,6 +38,10 @@ Window::Window(MTL::Device *device, const int width, const int height)
 
 Window::~Window() { glfwTerminate(); }
 
+bool Window::should_close() { return glfwWindowShouldClose(m_window); }
+
+void Window::poll_events() { glfwPollEvents(); }
+
 void Window::framebuffer_size_callback(GLFWwindow *window, const int width,
                                        const int height) {
   reinterpret_cast<Window *>(glfwGetWindowUserPointer(window))
@@ -56,6 +60,13 @@ CA::MetalLayer *Window::get_metal_layer() const { return m_layer; }
 CA::MetalDrawable *Window::get_metal_drawable() const { return m_drawable; }
 
 void Window::next_drawable() { m_drawable = m_layer->nextDrawable(); }
+
+bool Window::drawable() {
+  if (m_drawable)
+    return true;
+
+  return false;
+}
 
 } // namespace CTNM::RHI
 

@@ -26,10 +26,14 @@ public:
   Window(MTL::Device *device, int width, int height);
   ~Window();
 
+  bool should_close();
+  void poll_events();
+
   CA::MetalLayer *get_metal_layer() const;
 
   CA::MetalDrawable *get_metal_drawable() const;
   void next_drawable();
+  bool drawable();
 };
 
 } // namespace CTNM::RHI
