@@ -1,4 +1,9 @@
+/*
+ * TEMPORARY MAIN FILE
+ */
 #include <iostream>
+
+#include "rhi/window.hpp"
 
 int main(int argc, char *argv[])
 {
