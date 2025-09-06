@@ -2,6 +2,8 @@
 
 #include "window.hpp"
 
+#include <cstdint>
+
 #ifdef __APPLE__
 
 #include <Metal/Metal.hpp>
@@ -18,7 +20,7 @@ private:
   Window *m_window;
 
 public:
-  Renderer();
+  Renderer(const uint16_t width, const uint16_t height);
   ~Renderer();
 
   void stage();

@@ -1,7 +1,7 @@
 #include "rhi/renderer.hpp"
 #include "rhi/window.hpp"
 
-#include <stdexcept>
+#include <cstdint>
 
 #ifdef __APPLE__
 
@@ -10,9 +10,9 @@
 
 namespace CTNM::RHI {
 
-Renderer::Renderer()
+Renderer::Renderer(const uint16_t width, const uint16_t height)
     : m_device(MTL::CreateSystemDefaultDevice()),
-      m_window(new Window(m_device, 800, 700)) {}
+      m_window(new Window(m_device, width, height)) {}
 
 Renderer::~Renderer() {
   delete m_window;

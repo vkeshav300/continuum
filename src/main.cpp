@@ -8,7 +8,7 @@
 int main(int argc, char *argv[]) {
   std::cout << "Continuum v0.0.0\n";
 
-  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer();
+  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
   renderer.stage();
   renderer.render();
 
