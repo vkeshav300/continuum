@@ -1,6 +1,8 @@
 #include "rhi/renderer.hpp"
 #include "rhi/window.hpp"
 
+#include <stdexcept>
+
 #ifdef __APPLE__
 
 #include <Foundation/Foundation.hpp>
@@ -21,7 +23,16 @@ Renderer::~Renderer() {
   m_device->release();
 }
 
-void Renderer::stage() { m_cmd_queue = m_device->newCommandQueue(); }
+void Renderer::stage() {
+  m_library = m_device->newDefaultLibrary();
+
+  /* Loads shaders (no shaders currently present)
+  if (!m_library)
+    throw std::runtime_error("Failed to load library");
+    */
+
+  m_cmd_queue = m_device->newCommandQueue();
+}
 
 void Renderer::render() {
   while (!m_window->should_close()) {
