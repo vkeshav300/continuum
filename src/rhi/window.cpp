@@ -14,6 +14,9 @@ namespace CTNM::RHI {
 
 Window::Window(MTL::Device *device, const int width, const int height)
     : m_layer(CA::MetalLayer::layer()) {
+  glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
+  glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
+
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
