@@ -17,6 +17,8 @@ private:
   CA::MetalLayer *m_layer;
   CA::MetalDrawable *m_drawable;
 
+  static void error_callback(const int code, const char *description);
+
   static void framebuffer_size_callback(GLFWwindow *window, const int width,
                                         const int height);
 

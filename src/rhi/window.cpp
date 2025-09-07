@@ -2,6 +2,7 @@
 #include "rhi/bridges.hpp"
 
 #include <stdexcept>
+#include <string>
 
 #ifdef __APPLE__
 
@@ -27,6 +28,7 @@ Window::Window(MTL::Device *device, const int width, const int height)
   }
 
   glfwSetWindowUserPointer(m_window, this);
+  glfwSetErrorCallback(error_callback);
   glfwSetFramebufferSizeCallback(
       m_window, framebuffer_size_callback); // Executed upon window resizing
 
@@ -41,9 +43,10 @@ Window::Window(MTL::Device *device, const int width, const int height)
 
 Window::~Window() { glfwTerminate(); }
 
-bool Window::should_close() const { return glfwWindowShouldClose(m_window); }
-
-void Window::poll_events() const { glfwPollEvents(); }
+void Window::error_callback(const int code, const char *description) {
+  throw std::runtime_error("[GLFW]\t[CODE " + std::to_string(code) + "] " +
+                           std::string(description));
+}
 
 void Window::framebuffer_size_callback(GLFWwindow *window, const int width,
                                        const int height) {
@@ -57,6 +60,10 @@ void Window::resize_framebuffer(const int width, const int height) {
     m_drawable = m_layer->nextDrawable();
   }
 }
+
+bool Window::should_close() const { return glfwWindowShouldClose(m_window); }
+
+void Window::poll_events() const { glfwPollEvents(); }
 
 CA::MetalLayer *Window::get_metal_layer() const { return m_layer; }
 
