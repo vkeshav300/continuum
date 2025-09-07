@@ -26,8 +26,8 @@ public:
   Window(MTL::Device *device, int width, int height);
   ~Window();
 
-  bool should_close();
-  void poll_events();
+  bool should_close() const;
+  void poll_events() const;
 
   CA::MetalLayer *get_metal_layer() const;
 

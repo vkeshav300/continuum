@@ -41,9 +41,9 @@ Window::Window(MTL::Device *device, const int width, const int height)
 
 Window::~Window() { glfwTerminate(); }
 
-bool Window::should_close() { return glfwWindowShouldClose(m_window); }
+bool Window::should_close() const { return glfwWindowShouldClose(m_window); }
 
-void Window::poll_events() { glfwPollEvents(); }
+void Window::poll_events() const { glfwPollEvents(); }
 
 void Window::framebuffer_size_callback(GLFWwindow *window, const int width,
                                        const int height) {
