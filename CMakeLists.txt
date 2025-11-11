@@ -28,6 +28,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Exports data which enables some LSPs
 
 # Find packages
 find_package(GLFW3 REQUIRED)
+find_package(EnTT REQUIRED)
 
 # Process source files 
 file(GLOB_RECURSE SOURCES
@@ -45,6 +46,7 @@ target_include_directories(
 	${PROJECT_NAME} PRIVATE
 	${CMAKE_SOURCE_DIR}/include
 	${GLFW3_INCLUDE_DIRS}
+    ${EnTT_INCLUDE_DIRS}
 	${EXTERNAL_HEADERS_DIR}/metal-cpp
 	${EXTERNAL_HEADERS_DIR}/metal-cpp-extensions
 	${EXTERNAL_HEADERS_DIR}/stb
@@ -54,6 +56,7 @@ target_include_directories(
 target_link_libraries(
 	${PROJECT_NAME} PUBLIC
 	${GLFW3_LIBRARIES}
+    EnTT::EnTT
 	"-framework Metal"
 	"-framework Foundation"
 	"-framework Quartzcore"
