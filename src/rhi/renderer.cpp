@@ -69,7 +69,7 @@ void Renderer::resize_framebuffer(const int width, const int height) {
     m_drawable = m_layer->nextDrawable();
   }
 }
-void Renderer::stage() {
+void Renderer::stage(entt::registry &registry) {
   m_library = m_device->newDefaultLibrary();
 
   /* Loads shaders (no shaders currently present)
@@ -80,9 +80,9 @@ void Renderer::stage() {
   m_cmd_queue = m_device->newCommandQueue();
 }
 
-void Renderer::render_current_drawable() {}
+void Renderer::render_current_drawable(entt::registry &registry) {}
 
-void Renderer::render_to_preview() {
+void Renderer::render_to_preview(entt::registry &registry) {
   while (!glfwWindowShouldClose(m_window)) {
     NS::AutoreleasePool *pool =
         NS::AutoreleasePool::alloc()
@@ -96,7 +96,7 @@ void Renderer::render_to_preview() {
 
     m_cmd_buffer = m_cmd_queue->commandBuffer();
 
-    render_current_drawable();
+    render_current_drawable(registry);
 
     m_cmd_buffer->presentDrawable(m_drawable);
     // end render command encoder encoding

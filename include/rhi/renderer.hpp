@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include <entt/entt.hpp>
+
 #ifdef __APPLE__
 
 #include <AppKit/AppKit.hpp>
@@ -43,9 +45,9 @@ public:
   void next_drawable();
   bool drawable();
 
-  void stage();
-  void render_current_drawable();
-  void render_to_preview();
+  void stage(entt::registry &registry);
+  void render_current_drawable(entt::registry &registry);
+  void render_to_preview(entt::registry &registry);
 };
 
 } // namespace CTNM::RHI
