@@ -1,4 +1,5 @@
 #include "rhi/renderer.hpp"
+#include "components.h"
 #include "rhi/bridges.hpp"
 
 #include <cstdint>
@@ -26,11 +27,13 @@ namespace CTNM::RHI {
  * @param width Initial window framebuffer width in pixels.
  * @param height Initial window framebuffer height in pixels.
  *
- * @throws std::runtime_error If GLFW fails to initialize or the window cannot be created.
+ * @throws std::runtime_error If GLFW fails to initialize or the window cannot
+ * be created.
  */
 Renderer::Renderer(const uint16_t &width, const uint16_t &height)
     : m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()) {
+  /* Window */
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
 
@@ -57,12 +60,24 @@ Renderer::Renderer(const uint16_t &width, const uint16_t &height)
   m_layer->setDrawableSize(CGSizeMake(fb_width, fb_height));
 
   m_ns_window = bridges::get_ns_window(m_window, m_layer);
+
+  /* Metal */
+  m_library = m_device->newDefaultLibrary();
+
+  /* Loads shaders (no shaders currently present)
+  if (!m_library)
+    throw std::runtime_error("Failed to load library");
+    */
+
+  m_cmd_queue = m_device->newCommandQueue();
 }
 
 /**
- * @brief Cleans up renderer resources and shuts down the platform/graphics subsystems.
+ * @brief Cleans up renderer resources and shuts down the platform/graphics
+ * subsystems.
  *
- * Destroys the GLFW window if one exists, terminates the GLFW library, and releases owned Metal objects (command queue, library, device).
+ * Destroys the GLFW window if one exists, terminates the GLFW library, and
+ * releases owned Metal objects (command queue, library, device).
  */
 Renderer::~Renderer() {
   if (m_window)
@@ -92,18 +107,24 @@ void Renderer::resize_framebuffer(const int width, const int height) {
     m_drawable = m_layer->nextDrawable();
   }
 }
-void Renderer::stage(entt::registry &registry) {
-  m_library = m_device->newDefaultLibrary();
 
-  /* Loads shaders (no shaders currently present)
-  if (!m_library)
-    throw std::runtime_error("Failed to load library");
-    */
+/**
+ * @brief Handles any pre-processing required between creating entities and
+ * rendering scene
+ *
+ * @param registry
+ * @param scene_id
+ */
+void Renderer::stage(entt::registry &registry) {}
 
-  m_cmd_queue = m_device->newCommandQueue();
+void Renderer::render_current_drawable(entt::registry &registry) {
+  /* Iterate through all renderable objects */
+  registry.view<CTNM::Components::Transform, CTNM::Components::Bounding_Box>()
+      .each([](CTNM::Components::Transform &transform,
+               CTNM::Components::Bounding_Box &bbox) {
+        // Do something
+      });
 }
-
-void Renderer::render_current_drawable(entt::registry &registry) {}
 
 void Renderer::render_to_preview(entt::registry &registry) {
   while (!glfwWindowShouldClose(m_window)) {
