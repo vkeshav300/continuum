@@ -26,9 +26,14 @@ public:
   Window(MTL::Device *device, int width, int height);
   ~Window();
 
-  /* Prevent copying */
+  /**
+ * @brief Deleted copy constructor to prevent copying of Window instances.
+ */
   Window(const Window &) = delete;
-  Window &operator=(const Window &) = delete;
+  /**
+ * @brief Deleted copy assignment operator to prevent copy-assignment of Window instances.
+ */
+Window &operator=(const Window &) = delete;
 
   bool should_close();
   void poll_events();
