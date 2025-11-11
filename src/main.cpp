@@ -1,26 +1,26 @@
 /*
  * TEMPORARY MAIN FILE
  */
+#include "components.h"
+#include "rhi/renderer.hpp"
+#include "vectors.h"
+
 #include <iostream>
 
-#include "rhi/renderer.hpp"
+#include <entt/entt.hpp>
 
-/**
- * @brief Program entry point that initializes and runs the renderer.
- *
- * Prints the program version to standard output, constructs a CTNM::RHI::Renderer,
- * invokes its staging and rendering steps, and then exits.
- *
- * @param argc Number of command-line arguments.
- * @param argv Array of command-line argument strings.
- * @return int `0` on successful termination.
- */
 int main(int argc, char *argv[]) {
   std::cout << "Continuum v0.0.0\n";
 
-  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer();
-  renderer.stage();
-  renderer.render();
+  entt::registry registry;
+  entt::entity entity = registry.create();
+  registry.emplace<Transform>(entity, vec_f3{0.0f, 0.0f, 0.0f});
+  registry.emplace<Sphere_Bounding_Box>(entity, vec_f3{-1.0f, -1.0f, -1.0f},
+                                        vec_f3{1.0f, 1.0f, 1.0f});
+
+  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
+  renderer.stage(registry);
+  renderer.render_to_preview(registry);
 
   return 0;
 }
