@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../scene.hpp"
-
 #include <cstdint>
 
 #ifdef __APPLE__
@@ -46,8 +44,8 @@ public:
   bool drawable();
 
   void stage();
-  void render_current_drawable(const Scene &scene);
-  void render_to_preview(const Scene &scene);
+  void render_current_drawable();
+  void render_to_preview();
 };
 
 } // namespace CTNM::RHI

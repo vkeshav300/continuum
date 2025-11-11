@@ -1,6 +1,5 @@
 #include "rhi/renderer.hpp"
 #include "rhi/bridges.hpp"
-#include "scene.hpp"
 
 #include <cstdint>
 #include <stdexcept>
@@ -59,7 +58,7 @@ void Renderer::error_callback(const int code, const char *description) {
 }
 
 void Renderer::framebuffer_size_callback(GLFWwindow *window, const int width,
-                                       const int height) {
+                                         const int height) {
   reinterpret_cast<Renderer *>(glfwGetWindowUserPointer(window))
       ->resize_framebuffer(width, height);
 }
@@ -81,9 +80,9 @@ void Renderer::stage() {
   m_cmd_queue = m_device->newCommandQueue();
 }
 
-void Renderer::render_current_drawable(const Scene &scene) {}
+void Renderer::render_current_drawable() {}
 
-void Renderer::render_to_preview(const Scene &scene) {
+void Renderer::render_to_preview() {
   while (!glfwWindowShouldClose(m_window)) {
     NS::AutoreleasePool *pool =
         NS::AutoreleasePool::alloc()
@@ -97,7 +96,7 @@ void Renderer::render_to_preview(const Scene &scene) {
 
     m_cmd_buffer = m_cmd_queue->commandBuffer();
 
-    render_current_drawable(scene);
+    render_current_drawable();
 
     m_cmd_buffer->presentDrawable(m_drawable);
     // end render command encoder encoding

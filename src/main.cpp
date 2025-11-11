@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
 
   CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
   renderer.stage();
-  renderer.render();
+  renderer.render_to_preview();
 
   return 0;
 }
