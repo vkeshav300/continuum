@@ -1,10 +1,14 @@
 #include "rhi/renderer.hpp"
 #include "components.h"
+#include "rhi/attachments.hpp"
 #include "rhi/bridges.hpp"
 
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
+
+#include <entt/entt.hpp>
 
 #ifdef __APPLE__
 
@@ -13,6 +17,7 @@
 #include <GLFW/glfw3.h>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/QuartzCore.hpp>
+#include <simd/simd.h>
 
 namespace CTNM::RHI {
 
@@ -115,13 +120,50 @@ void Renderer::resize_framebuffer(const int width, const int height) {
  * @param registry
  * @param scene_id
  */
-void Renderer::stage(entt::registry &registry) {}
+void Renderer::stage(entt::registry &registry) {
+  /* Attach rendering data to all objects */
+  auto renderable_objects =
+      registry
+          .view<CTNM::Components::Transform, CTNM::Components::Bounding_Box>();
+
+  MTL::CommandBuffer *m_cmd_buff = m_cmd_queue->commandBuffer();
+  MTL::AccelerationStructureCommandEncoder *blas_cmd_enc =
+      m_cmd_buff->accelerationStructureCommandEncoder();
+
+  for (const entt::entity &e : renderable_objects) {
+    /* Calculate bounding box */
+    const auto &[transform, bbox] =
+        registry
+            .get<CTNM::Components::Transform, CTNM::Components::Bounding_Box>(
+                e);
+
+    /* Create bounding box and buffer */
+    MTL::AxisAlignedBoundingBox aabb;
+    switch (bbox.style) {
+    case CTNM::Components::Bounding_Box_Style::Sphere:
+      aabb.min = {-bbox.d, -bbox.d, -bbox.d};
+      aabb.max = {bbox.d, bbox.d, bbox.d};
+      break;
+
+    default:
+      throw std::runtime_error("Invalid bounding box style");
+    };
+
+    /* Attach to entity */
+    registry.emplace<CTNM::Components::Metal_Attachment>(e);
+    registry.get<CTNM::Components::Metal_Attachment>(e).build_blas(
+        m_device, blas_cmd_enc, aabb);
+  }
+
+  blas_cmd_enc->endEncoding();
+  m_cmd_buff->commit();
+  m_cmd_buff->waitUntilCompleted();
+}
 
 void Renderer::render_current_drawable(entt::registry &registry) {
   /* Iterate through all renderable objects */
-  registry.view<CTNM::Components::Transform, CTNM::Components::Bounding_Box>()
-      .each([](CTNM::Components::Transform &transform,
-               CTNM::Components::Bounding_Box &bbox) {
+  registry.view<CTNM::Components::Metal_Attachment>().each(
+      [](CTNM::Components::Metal_Attachment &attachment) {
         // Do something
       });
 }
@@ -138,21 +180,23 @@ void Renderer::render_to_preview(entt::registry &registry) {
       continue;
     }
 
-    m_cmd_buffer = m_cmd_queue->commandBuffer();
+    m_cmd_buff = m_cmd_queue->commandBuffer();
 
     render_current_drawable(registry);
 
-    m_cmd_buffer->presentDrawable(m_drawable);
+    m_cmd_buff->presentDrawable(m_drawable);
     // end render command encoder encoding
-    m_cmd_buffer->commit();
+    m_cmd_buff->commit();
 
 #ifdef DEBUG
-    m_cmd_buffer->waitUntilCompleted();
+    m_cmd_buff->waitUntilCompleted();
 #endif
 
     pool->release();
     glfwPollEvents();
   }
+
+  registry.clear<CTNM::Components::Metal_Attachment>();
 }
 
 } // namespace CTNM::RHI

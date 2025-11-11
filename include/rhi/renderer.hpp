@@ -26,7 +26,7 @@ private:
   MTL::Device *m_device;
   MTL::Library *m_library;
   MTL::CommandQueue *m_cmd_queue;
-  MTL::CommandBuffer *m_cmd_buffer;
+  MTL::CommandBuffer *m_cmd_buff;
 
   static void error_callback(const int code, const char *description);
 

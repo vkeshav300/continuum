@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Transform>(entity,
                                                 vec_f3{0.0f, 0.0f, 0.0f});
   registry.emplace<CTNM::Components::Bounding_Box>(
-      entity, vec_f3{-1.0f, -1.0f, -1.0f}, vec_f3{1.0f, 1.0f, 1.0f});
+      entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
 
   CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
   renderer.stage(registry);

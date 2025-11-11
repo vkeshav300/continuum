@@ -10,6 +10,7 @@ cmake_minimum_required(VERSION 3.31.6)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 	add_definitions(-DDEBUG)
 	message(STATUS "Debug mode enabled")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
 endif()
 
 # Project config
