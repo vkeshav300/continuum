@@ -9,6 +9,17 @@
 
 #include <entt/entt.hpp>
 
+/**
+ * @brief Program entry point that initializes a minimal scene and runs a single preview render.
+ *
+ * Creates an EnTT registry with one entity (a Transform and a Bounding_Box), constructs an RHI
+ * renderer with a fixed viewport size, stages the registry state for rendering, and produces a
+ * preview render before exiting.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Array of command-line argument strings.
+ * @return int `0` on successful execution.
+ */
 int main(int argc, char *argv[]) {
   std::cout << "Continuum v0.0.0\n";
 
