@@ -36,7 +36,6 @@ Window::Window(MTL::Device *device, const int width, const int height)
   if (!glfwInit())
     throw std::runtime_error("Failed to initialize GLFW");
 
-  glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
 
