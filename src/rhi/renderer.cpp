@@ -21,11 +21,9 @@ Renderer::Renderer()
       m_window(new Window(m_device, 800, 700)) {}
 
 /**
- * @brief Cleans up renderer resources and releases the owned Window and Metal
- * objects.
+ * @brief Release renderer-owned resources and destroy the window.
  *
- * Deletes the owned Window instance and sets its pointer to nullptr, then
- * releases the Metal command queue, library, and device held by the renderer.
+ * Releases the Metal command queue, library, and device, then deletes the owned Window and sets its pointer to nullptr.
  */
 Renderer::~Renderer() {
   delete m_window;
@@ -55,15 +53,11 @@ void Renderer::stage() {
 }
 
 /**
- * @brief Runs the renderer's main loop, presenting Metal drawables each frame
- * until the window closes.
+ * @brief Runs the renderer's main loop until the associated window closes.
  *
- * Each iteration creates an autorelease pool, advances to the next drawable,
- * and if a drawable is available records and submits a command buffer that
- * presents the window's current Metal drawable. When no drawable is available
- * the frame is skipped. After submitting the command buffer the function
- * optionally waits for completion in debug builds and polls window events
- * before the next iteration.
+ * Presents available Metal drawables each frame, commits their command buffers,
+ * waits for completion in debug builds, and polls window events. Frames that
+ * have no available drawable are skipped.
  */
 void Renderer::render() {
   while (!m_window->should_close()) {

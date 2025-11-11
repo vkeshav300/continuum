@@ -13,20 +13,19 @@
 namespace CTNM::RHI {
 
 /**
- * @brief Create and initialize a platform window with an associated Metal
- * layer.
+ * @brief Initialize a platform Window and attach a Metal layer for rendering.
  *
- * Constructs a Window by initializing GLFW, creating an API-less GLFW window
- * titled "Continuum", registering a framebuffer resize callback, configuring
- * the Metal layer with the provided device and an BGRA8Unorm pixel format,
- * setting the layer's drawable size to the current framebuffer dimensions, and
- * obtaining the corresponding NS window handle.
+ * Constructs a Window configured to use the given Metal device and initial
+ * pixel dimensions; the Window will manage an underlying platform window,
+ * a CA::MetalLayer configured for BGRA8Unorm, and an initial drawable size
+ * matching the supplied dimensions.
  *
  * @param device Pointer to the Metal device used by the window's Metal layer.
  * @param width Initial window width in pixels.
  * @param height Initial window height in pixels.
  *
- * @throws std::runtime_error If the GLFW window could not be created.
+ * @throws std::runtime_error If `device` is null, if GLFW fails to initialize,
+ * or if the platform window cannot be created.
  */
 Window::Window(MTL::Device *device, const int width, const int height)
     : m_window(nullptr), m_ns_window(nullptr), m_layer(CA::MetalLayer::layer()),
@@ -62,7 +61,7 @@ Window::Window(MTL::Device *device, const int width, const int height)
 /**
  * @brief Destroy the Window and release platform resources.
  *
- * Ensures GLFW is shut down and associated GLFW resources are released.
+ * Releases the current Metal drawable and layer if present, destroys the GLFW window, and terminates GLFW.
  */
 Window::~Window() {
   if (m_window) {
@@ -100,13 +99,12 @@ bool Window::should_close() { return glfwWindowShouldClose(m_window); }
 void Window::poll_events() { glfwPollEvents(); }
 
 /**
- * @brief Handle GLFW framebuffer resize events for the associated Window.
+ * @brief Dispatches a GLFW framebuffer resize notification to the associated Window instance.
  *
- * Looks up the Window instance stored in the GLFW window's user pointer and
- * updates its framebuffer size to match the given dimensions.
+ * Looks up the Window pointer stored in the GLFW window's user pointer and forwards the new
+ * framebuffer dimensions so the Window can update its drawable size.
  *
- * @param window GLFW window whose framebuffer was resized; must have this
- * Window instance stored as its user pointer.
+ * @param window GLFW window whose user pointer holds the associated Window instance.
  * @param width  New framebuffer width in pixels.
  * @param height New framebuffer height in pixels.
  */
@@ -144,19 +142,17 @@ void Window::resize_framebuffer(const int width, const int height) {
 CA::MetalLayer *Window::get_metal_layer() const { return m_layer; }
 
 /**
- * @brief Return the current Metal drawable used for rendering.
+ * @brief Gets the current Metal drawable used for rendering.
  *
- * @return CA::MetalDrawable* Pointer to the current drawable, or `nullptr` if
- * no drawable is available.
+ * @return CA::MetalDrawable* Pointer to the current drawable, or nullptr if none is available.
  */
 CA::MetalDrawable *Window::get_metal_drawable() const { return m_drawable; }
 
 /**
- * @brief Advance the internal drawable to the next available drawable from the
- * Metal layer.
+ * @brief Acquire and store the next drawable from the Metal layer for rendering.
  *
- * Updates the Window's stored drawable reference to the layer's next drawable
- * so subsequent rendering operations use the newly acquired drawable.
+ * Retrieves the layer's next drawable and updates the window's stored drawable
+ * so subsequent rendering targets the newly acquired drawable.
  */
 void Window::next_drawable() { m_drawable = m_layer->nextDrawable(); }
 
