@@ -28,4 +28,3 @@ public:
 } // namespace CTNM::RHI
 
 #endif
-

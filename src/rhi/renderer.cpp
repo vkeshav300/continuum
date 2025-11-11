@@ -11,20 +11,21 @@
 namespace CTNM::RHI {
 
 /**
-       * @brief Construct a renderer and initialize its Metal device and window.
-       *
-       * Initializes the renderer by creating the system's default Metal device and
-       * creating an internal Window sized 800×700 backed by that device.
-       */
-      Renderer::Renderer()
+ * @brief Construct a renderer and initialize its Metal device and window.
+ *
+ * Initializes the renderer by creating the system's default Metal device and
+ * creating an internal Window sized 800×700 backed by that device.
+ */
+Renderer::Renderer()
     : m_device(MTL::CreateSystemDefaultDevice()),
       m_window(new Window(m_device, 800, 700)) {}
 
 /**
- * @brief Cleans up renderer resources and releases the owned Window and Metal objects.
+ * @brief Cleans up renderer resources and releases the owned Window and Metal
+ * objects.
  *
- * Deletes the owned Window instance and sets its pointer to nullptr, then releases
- * the Metal command queue, library, and device held by the renderer.
+ * Deletes the owned Window instance and sets its pointer to nullptr, then
+ * releases the Metal command queue, library, and device held by the renderer.
  */
 Renderer::~Renderer() {
   delete m_window;
@@ -54,12 +55,15 @@ void Renderer::stage() {
 }
 
 /**
- * @brief Runs the renderer's main loop, presenting Metal drawables each frame until the window closes.
+ * @brief Runs the renderer's main loop, presenting Metal drawables each frame
+ * until the window closes.
  *
- * Each iteration creates an autorelease pool, advances to the next drawable, and if a drawable is available
- * records and submits a command buffer that presents the window's current Metal drawable. When no drawable
- * is available the frame is skipped. After submitting the command buffer the function optionally waits for
- * completion in debug builds and polls window events before the next iteration.
+ * Each iteration creates an autorelease pool, advances to the next drawable,
+ * and if a drawable is available records and submits a command buffer that
+ * presents the window's current Metal drawable. When no drawable is available
+ * the frame is skipped. After submitting the command buffer the function
+ * optionally waits for completion in debug builds and polls window events
+ * before the next iteration.
  */
 void Renderer::render() {
   while (!m_window->should_close()) {

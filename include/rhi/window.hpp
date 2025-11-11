@@ -26,6 +26,10 @@ public:
   Window(MTL::Device *device, int width, int height);
   ~Window();
 
+  /* Prevent copying */
+  Window(const Window &) = delete;
+  Window &operator=(const Window &) = delete;
+
   bool should_close();
   void poll_events();
 

@@ -13,12 +13,14 @@
 namespace CTNM::RHI {
 
 /**
- * @brief Create and initialize a platform window with an associated Metal layer.
+ * @brief Create and initialize a platform window with an associated Metal
+ * layer.
  *
- * Constructs a Window by initializing GLFW, creating an API-less GLFW window titled "Continuum",
- * registering a framebuffer resize callback, configuring the Metal layer with the provided device
- * and an BGRA8Unorm pixel format, setting the layer's drawable size to the current framebuffer
- * dimensions, and obtaining the corresponding NS window handle.
+ * Constructs a Window by initializing GLFW, creating an API-less GLFW window
+ * titled "Continuum", registering a framebuffer resize callback, configuring
+ * the Metal layer with the provided device and an BGRA8Unorm pixel format,
+ * setting the layer's drawable size to the current framebuffer dimensions, and
+ * obtaining the corresponding NS window handle.
  *
  * @param device Pointer to the Metal device used by the window's Metal layer.
  * @param width Initial window width in pixels.
@@ -27,7 +29,14 @@ namespace CTNM::RHI {
  * @throws std::runtime_error If the GLFW window could not be created.
  */
 Window::Window(MTL::Device *device, const int width, const int height)
-    : m_layer(CA::MetalLayer::layer()) {
+    : m_window(nullptr), m_ns_window(nullptr), m_layer(CA::MetalLayer::layer()),
+      m_drawable(nullptr) {
+  if (!device)
+    throw std::runtime_error("Null device provided");
+
+  if (!glfwInit())
+    throw std::runtime_error("Failed to initialize GLFW");
+
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
@@ -55,7 +64,24 @@ Window::Window(MTL::Device *device, const int width, const int height)
  *
  * Ensures GLFW is shut down and associated GLFW resources are released.
  */
-Window::~Window() { glfwTerminate(); }
+Window::~Window() {
+  if (m_window) {
+    glfwDestroyWindow(m_window);
+    m_window = nullptr;
+  }
+
+  if (m_drawable) {
+    m_drawable->release();
+    m_drawable = nullptr;
+  }
+
+  if (m_layer) {
+    m_layer->release();
+    m_layer = nullptr;
+  }
+
+  glfwTerminate();
+}
 
 /**
  * @brief Indicates whether the window has been requested to close.
@@ -68,8 +94,8 @@ bool Window::should_close() { return glfwWindowShouldClose(m_window); }
  * @brief Processes pending window events and dispatches their callbacks.
  *
  * Polls the platform event queue and invokes any registered GLFW event handlers
- * (input, window, and other callbacks) so the application can respond to user and
- * system events.
+ * (input, window, and other callbacks) so the application can respond to user
+ * and system events.
  */
 void Window::poll_events() { glfwPollEvents(); }
 
@@ -79,22 +105,25 @@ void Window::poll_events() { glfwPollEvents(); }
  * Looks up the Window instance stored in the GLFW window's user pointer and
  * updates its framebuffer size to match the given dimensions.
  *
- * @param window GLFW window whose framebuffer was resized; must have this Window
- *        instance stored as its user pointer.
+ * @param window GLFW window whose framebuffer was resized; must have this
+ * Window instance stored as its user pointer.
  * @param width  New framebuffer width in pixels.
  * @param height New framebuffer height in pixels.
  */
 void Window::framebuffer_size_callback(GLFWwindow *window, const int width,
                                        const int height) {
-  reinterpret_cast<Window *>(glfwGetWindowUserPointer(window))
-      ->resize_framebuffer(width, height);
+  Window *win = reinterpret_cast<Window *>(glfwGetWindowUserPointer(window));
+  if (win)
+    win->resize_framebuffer(width, height);
 }
 
 /**
- * @brief Update the Metal layer's drawable size to the given framebuffer dimensions and refresh the current drawable.
+ * @brief Update the Metal layer's drawable size to the given framebuffer
+ * dimensions and refresh the current drawable.
  *
- * If a Metal layer is present, sets its drawable size to the specified width and height (in pixels) and replaces
- * the stored drawable with the layer's next drawable.
+ * If a Metal layer is present, sets its drawable size to the specified width
+ * and height (in pixels) and replaces the stored drawable with the layer's next
+ * drawable.
  *
  * @param width Framebuffer width in pixels.
  * @param height Framebuffer height in pixels.
@@ -109,22 +138,25 @@ void Window::resize_framebuffer(const int width, const int height) {
 /**
  * @brief Retrieves the Metal layer associated with this window.
  *
- * @return CA::MetalLayer* Pointer to the window's CA::MetalLayer, or `nullptr` if no layer is set.
+ * @return CA::MetalLayer* Pointer to the window's CA::MetalLayer, or `nullptr`
+ * if no layer is set.
  */
 CA::MetalLayer *Window::get_metal_layer() const { return m_layer; }
 
 /**
  * @brief Return the current Metal drawable used for rendering.
  *
- * @return CA::MetalDrawable* Pointer to the current drawable, or `nullptr` if no drawable is available.
+ * @return CA::MetalDrawable* Pointer to the current drawable, or `nullptr` if
+ * no drawable is available.
  */
 CA::MetalDrawable *Window::get_metal_drawable() const { return m_drawable; }
 
 /**
- * @brief Advance the internal drawable to the next available drawable from the Metal layer.
+ * @brief Advance the internal drawable to the next available drawable from the
+ * Metal layer.
  *
- * Updates the Window's stored drawable reference to the layer's next drawable so subsequent
- * rendering operations use the newly acquired drawable.
+ * Updates the Window's stored drawable reference to the layer's next drawable
+ * so subsequent rendering operations use the newly acquired drawable.
  */
 void Window::next_drawable() { m_drawable = m_layer->nextDrawable(); }
 
@@ -133,12 +165,7 @@ void Window::next_drawable() { m_drawable = m_layer->nextDrawable(); }
  *
  * @returns `true` if a Metal drawable is available, `false` otherwise.
  */
-bool Window::drawable() {
-  if (m_drawable)
-    return true;
-
-  return false;
-}
+bool Window::drawable() { return m_drawable != nullptr; }
 
 } // namespace CTNM::RHI
 
