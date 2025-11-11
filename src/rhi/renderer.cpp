@@ -15,13 +15,28 @@
 
 namespace CTNM::RHI {
 
+/**
+ * @brief Construct a macOS Metal renderer and create its GLFW window and layer.
+ *
+ * Initializes the system Metal device and CAMetalLayer, configures GLFW for
+ * Cocoa, creates a window sized to the given dimensions, registers GLFW error
+ * and framebuffer-size callbacks, sets the Metal layer's device, pixel format,
+ * and drawable size, and obtains the corresponding NSWindow bridge.
+ *
+ * @param width Initial window framebuffer width in pixels.
+ * @param height Initial window framebuffer height in pixels.
+ *
+ * @throws std::runtime_error If GLFW fails to initialize or the window cannot be created.
+ */
 Renderer::Renderer(const uint16_t &width, const uint16_t &height)
     : m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()) {
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
 
-  glfwInit();
+  if (!glfwInit())
+    throw std::runtime_error("Failed to initialize GLFW");
+
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
 
@@ -44,7 +59,15 @@ Renderer::Renderer(const uint16_t &width, const uint16_t &height)
   m_ns_window = bridges::get_ns_window(m_window, m_layer);
 }
 
+/**
+ * @brief Cleans up renderer resources and shuts down the platform/graphics subsystems.
+ *
+ * Destroys the GLFW window if one exists, terminates the GLFW library, and releases owned Metal objects (command queue, library, device).
+ */
 Renderer::~Renderer() {
+  if (m_window)
+    glfwDestroyWindow(m_window);
+
   glfwTerminate();
 
   m_cmd_queue->release();
