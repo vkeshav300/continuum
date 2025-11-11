@@ -15,8 +15,8 @@ int main(int argc, char *argv[]) {
   entt::registry registry;
   entt::entity entity = registry.create();
   registry.emplace<Transform>(entity, vec_f3{0.0f, 0.0f, 0.0f});
-  registry.emplace<Sphere_Bounding_Box>(entity, vec_f3{-1.0f, -1.0f, -1.0f},
-                                        vec_f3{1.0f, 1.0f, 1.0f});
+  registry.emplace<Bounding_Box>(entity, vec_f3{-1.0f, -1.0f, -1.0f},
+                                 vec_f3{1.0f, 1.0f, 1.0f});
 
   CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
   renderer.stage(registry);
