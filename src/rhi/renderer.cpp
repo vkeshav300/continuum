@@ -21,7 +21,9 @@ Renderer::Renderer(const uint16_t &width, const uint16_t &height)
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
 
-  glfwInit();
+  if (!glfwInit())
+    throw std::runtime_error("Failed to initialize GLFW");
+
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
 
@@ -45,6 +47,9 @@ Renderer::Renderer(const uint16_t &width, const uint16_t &height)
 }
 
 Renderer::~Renderer() {
+  if (m_window)
+    glfwDestroyWindow(m_window);
+
   glfwTerminate();
 
   m_cmd_queue->release();
