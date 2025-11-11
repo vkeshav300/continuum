@@ -1,0 +1,22 @@
+# .github/labeler.yml
+# Automatically apply labels to PRs based on the files that are changed.
+
+"Render Hardware Interface":
+  - "src/rhi/**"
+  - "include/rhi/**"
+
+"Shaders":
+  - "shaders/**"
+
+"ECS":
+- "include/components.h"
+
+"Data Structures":
+- "include/vectors.h"
+
+"Dependencies":
+- "dependences/**"
+
+"CMake":
+- "CMakeLists.txt"
+- "cmake/**"
