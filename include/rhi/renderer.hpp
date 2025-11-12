@@ -27,6 +27,7 @@ private:
   MTL::Library *m_library;
   MTL::CommandQueue *m_cmd_queue;
   MTL::CommandBuffer *m_cmd_buff;
+  MTL::AccelerationStructureCommandEncoder *m_as_cmd_enc;
 
   static void error_callback(const int code, const char *description);
 

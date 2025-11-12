@@ -127,8 +127,7 @@ void Renderer::stage(entt::registry &registry) {
           .view<CTNM::Components::Transform, CTNM::Components::Bounding_Box>();
 
   MTL::CommandBuffer *m_cmd_buff = m_cmd_queue->commandBuffer();
-  MTL::AccelerationStructureCommandEncoder *blas_cmd_enc =
-      m_cmd_buff->accelerationStructureCommandEncoder();
+  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
 
   for (const entt::entity &e : renderable_objects) {
     /* Calculate bounding box */
@@ -152,19 +151,36 @@ void Renderer::stage(entt::registry &registry) {
     /* Attach to entity */
     registry.emplace<CTNM::Components::Metal_Attachment>(e);
     registry.get<CTNM::Components::Metal_Attachment>(e).build_blas(
-        m_device, blas_cmd_enc, aabb);
+        m_device, m_as_cmd_enc, aabb);
   }
 
-  blas_cmd_enc->endEncoding();
+  m_as_cmd_enc->endEncoding();
   m_cmd_buff->commit();
   m_cmd_buff->waitUntilCompleted();
 }
 
 void Renderer::render_current_drawable(entt::registry &registry) {
   /* Iterate through all renderable objects */
-  registry.view<CTNM::Components::Metal_Attachment>().each(
-      [](CTNM::Components::Metal_Attachment &attachment) {
-        // Do something
+  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
+
+  registry
+      .view<CTNM::Components::Bounding_Box,
+            CTNM::Components::Metal_Attachment>()
+      .each([this](CTNM::Components::Bounding_Box &bbox,
+                   CTNM::Components::Metal_Attachment &attachment) {
+        MTL::AxisAlignedBoundingBox aabb;
+        switch (bbox.style) {
+        case CTNM::Components::Bounding_Box_Style::Sphere:
+          aabb.min = {-bbox.d, -bbox.d, -bbox.d};
+          aabb.max = {bbox.d, bbox.d, bbox.d};
+          break;
+
+        default:
+          throw std::runtime_error("Invalid bounding box style");
+        };
+
+        if (attachment.needs_refit(aabb))
+          attachment.refit_blas(m_device, m_as_cmd_enc);
       });
 }
 
@@ -185,7 +201,7 @@ void Renderer::render_to_preview(entt::registry &registry) {
     render_current_drawable(registry);
 
     m_cmd_buff->presentDrawable(m_drawable);
-    // end render command encoder encoding
+    m_as_cmd_enc->endEncoding();
     m_cmd_buff->commit();
 
 #ifdef DEBUG
