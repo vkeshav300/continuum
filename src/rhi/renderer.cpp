@@ -168,6 +168,7 @@ void Renderer::render_current_drawable(entt::registry &registry) {
             CTNM::Components::Metal_Attachment>()
       .each([this](CTNM::Components::Bounding_Box &bbox,
                    CTNM::Components::Metal_Attachment &attachment) {
+        /* Calculate new bounding box */
         MTL::AxisAlignedBoundingBox aabb;
         switch (bbox.style) {
         case CTNM::Components::Bounding_Box_Style::Sphere:
@@ -179,6 +180,7 @@ void Renderer::render_current_drawable(entt::registry &registry) {
           throw std::runtime_error("Invalid bounding box style");
         };
 
+        /* Refit bounding box if needed */
         if (attachment.needs_refit(aabb))
           attachment.refit_blas(m_device, m_as_cmd_enc);
       });
