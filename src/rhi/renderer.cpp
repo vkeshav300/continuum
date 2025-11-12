@@ -96,7 +96,8 @@ Renderer::~Renderer() {
 }
 
 void Renderer::error_callback(const int code, const char *description) {
-  throw std::runtime_error("[GLFW]\t[CODE " + std::to_string(code) + "] " +
+  throw std::runtime_error("GLFW error callback with code " +
+                           std::to_string(code) + ", " +
                            std::string(description));
 }
 
