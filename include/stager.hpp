@@ -20,10 +20,12 @@ public:
   ~Stager();
 
   void stage(entt::registry &registry, const RHI::GPU_Context &context);
-  void clean_up(const entt::registry &registry, entt::entity e);
+  void clean_up(entt::entity e);
 
   const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
   get_render_packets() const;
+
+  void callback_bbox_destroyed(entt::registry &registry, entt::entity e);
 };
 
 } // namespace CTNM

@@ -3,9 +3,15 @@
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
+#include <entt/entt.hpp>
+
 namespace CTNM {
 
 Stager::~Stager() {}
+
+void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
+  m_render_packets.erase(e);
+}
 
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities = registry.view<Components::Bounding_Box>();
@@ -25,11 +31,6 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
     }
   }
 }
-
-void Stager::clean_up(const entt::registry &registry, entt::entity e) {
-  m_render_packets.erase(
-      e); // Future: attach to destruction of entities in the registry
-};
 
 const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
 Stager::get_render_packets() const {

@@ -33,6 +33,9 @@ int main(int argc, char *argv[]) {
       entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
 
   CTNM::Stager stager;
+  registry.on_destroy<CTNM::Components::Bounding_Box>()
+      .connect<&CTNM::Stager::callback_bbox_destroyed>(stager);
+
   CTNM::RHI::GPU_Interface interface(800, 600);
 
   while (!interface.should_close()) {
@@ -44,6 +47,10 @@ int main(int argc, char *argv[]) {
 
     interface.poll_events();
   }
+
+  /* Prevent calling callback which might not exist */
+  registry.on_destroy<CTNM::Components::Bounding_Box>()
+      .disconnect<&CTNM::Stager::callback_bbox_destroyed>(stager);
 
   return 0;
 }
