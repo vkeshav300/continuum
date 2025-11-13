@@ -1,6 +1,10 @@
 #pragma once
+#include "gpu_context.hpp"
+#include "render_packet.hpp"
 
 #include <cstdint>
+#include <memory>
+#include <unordered_map>
 
 #include <entt/entt.hpp>
 
@@ -13,7 +17,13 @@
 
 namespace CTNM::RHI {
 
-class Renderer {
+enum Return_Code : uint8_t {
+  Normal = 0,
+  Skip,
+  Fatal,
+};
+
+class GPU_Interface {
 private:
   /* Window interface */
   GLFWwindow *m_window;
@@ -37,18 +47,19 @@ private:
   void resize_framebuffer(const int width, const int height);
 
 public:
-  Renderer(const uint16_t &width, const uint16_t &height);
-  ~Renderer();
+  GPU_Interface(const uint16_t &width, const uint16_t &height);
+  ~GPU_Interface();
+
+  GPU_Context get_gpu_context() const;
+
+  void next_drawable();
+
+  uint8_t
+  render(const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
+             &render_packets);
 
   bool should_close() const;
   void poll_events() const;
-
-  void next_drawable();
-  bool drawable();
-
-  void stage(entt::registry &registry);
-  void render_current_drawable(entt::registry &registry);
-  void render_to_preview(entt::registry &registry);
 };
 
 } // namespace CTNM::RHI

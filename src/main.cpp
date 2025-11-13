@@ -2,7 +2,8 @@
  * TEMPORARY MAIN FILE
  */
 #include "components.h"
-#include "rhi/renderer.hpp"
+#include "rhi/gpu_interface.hpp"
+#include "stager.hpp"
 #include "vectors.h"
 
 #include <iostream>
@@ -31,9 +32,18 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Bounding_Box>(
       entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
 
-  CTNM::RHI::Renderer renderer = CTNM::RHI::Renderer(800, 700);
-  renderer.stage(registry);
-  renderer.render_to_preview(registry);
+  CTNM::Stager stager;
+  CTNM::RHI::GPU_Interface interface(800, 600);
+
+  while (!interface.should_close()) {
+    stager.stage(registry, interface.get_gpu_context());
+
+    if (interface.render(stager.get_render_packets()) ==
+        CTNM::RHI::Return_Code::Skip)
+      continue;
+
+    interface.poll_events();
+  }
 
   return 0;
 }
