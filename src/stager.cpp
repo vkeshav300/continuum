@@ -1,5 +1,5 @@
 #include "stager.hpp"
-#include "components.h"
+#include "dtypes/components.h"
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 

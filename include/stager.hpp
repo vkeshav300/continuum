@@ -20,7 +20,6 @@ public:
   ~Stager();
 
   void stage(entt::registry &registry, const RHI::GPU_Context &context);
-  void clean_up(entt::entity e);
 
   const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
   get_render_packets() const;

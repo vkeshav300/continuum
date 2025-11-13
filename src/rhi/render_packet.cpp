@@ -1,4 +1,5 @@
 #include "rhi/render_packet.hpp"
+#include "dtypes/components.h"
 #include "rhi/gpu_context.hpp"
 
 #include <cmath>

@@ -1,10 +1,10 @@
 /*
  * TEMPORARY MAIN FILE
  */
-#include "components.h"
+#include "dtypes/components.h"
+#include "dtypes/vectors.h"
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
-#include "vectors.h"
 
 #include <iostream>
 

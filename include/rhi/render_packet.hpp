@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../components.h"
+#include "../dtypes/components.h"
 #include "gpu_context.hpp"
 
 #include <entt/entt.hpp>
