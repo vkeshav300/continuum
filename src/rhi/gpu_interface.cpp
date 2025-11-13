@@ -66,7 +66,7 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
   m_layer->setDrawableSize(CGSizeMake(fb_width, fb_height));
 
-  m_ns_window = bridges::get_ns_window(m_window, m_layer);
+  m_ns_window = Bridges::get_ns_window(m_window, m_layer);
 
   /* Metal */
   m_library = m_device->newDefaultLibrary();

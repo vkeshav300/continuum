@@ -7,7 +7,7 @@
 #include <GLFW/glfw3native.h>
 #include <QuartzCore/QuartzCore.hpp>
 
-namespace CTNM::RHI::bridges {
+namespace CTNM::RHI::Bridges {
 
 NS::Window *get_ns_window(GLFWwindow *window, CA::MetalLayer *layer) {
   NSWindow *_window = glfwGetCocoaWindow(window);
@@ -16,6 +16,6 @@ NS::Window *get_ns_window(GLFWwindow *window, CA::MetalLayer *layer) {
   return (__bridge NS::Window *)_window;
 }
 
-} // namespace CTNM::RHI::bridges
+} // namespace CTNM::RHI::Bridges
 
 #endif

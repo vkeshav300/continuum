@@ -11,10 +11,10 @@
 #define GLFW_EXPOSE_NATIVE_COCOA
 #include <GLFW/glfw3native.h>
 
-namespace CTNM::RHI::bridges {
+namespace CTNM::RHI::Bridges {
 
 NS::Window *get_ns_window(GLFWwindow *window, CA::MetalLayer *layer);
 
-} // namespace CTNM::RHI::bridges
+} // namespace CTNM::RHI::Bridges
 
 #endif
