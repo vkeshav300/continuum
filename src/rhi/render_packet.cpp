@@ -14,13 +14,66 @@ static inline bool approx_eq(const float a, const float b, const float eps) {
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
+#include <simd/simd.h>
+
+static inline MTL::AxisAlignedBoundingBox
+to_mtl_aabb(const CTNM::Components::Bounding_Box &bbox) {
+  MTL::AxisAlignedBoundingBox aabb;
+  switch (bbox.style) {
+  case CTNM::Components::Bounding_Box_Style::Sphere:
+    aabb.min = {-bbox.d, -bbox.d, -bbox.d};
+    aabb.max = {bbox.d, bbox.d, bbox.d};
+    break;
+
+  default:
+    throw std::runtime_error("Invalid bounding box style");
+  };
+
+  return aabb;
+}
+
+static inline MTL::PackedFloat4x3
+to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
+  /* Create quaternion for rotation
+   * Quaternion: (real, imaginary) -> (qw, qv)
+   * */
+  vector_float3 axis =
+      vector_float3{transform.rtn.x, transform.rtn.y, transform.rtn.z};
+  axis = simd::length(axis) > 1e-8f ? simd::normalize(axis)
+                                    : vector_float3{0.0f, 0.0f, 1.0f};
+  const float half = 0.5 * transform.rtn.w, qw = std::cosf(half);
+  const vector_float3 qv = axis * std::sinf(half);
+
+  /* Convert quaterion into 3x3 rotation matrix (column-major) */
+  const float xx = qv.x * qv.x, yy = qv.y * qv.y, zz = qv.z * qv.z,
+              xy = qv.x * qv.y, xz = qv.x * qv.z, yz = qv.y * qv.z,
+              wx = qw * qv.x, wy = qw * qv.y, wz = qw * qv.z;
+
+  vector_float3 col_0{1.0f - 2.0f * (yy + zz), 2.0f * (xy + wz),
+                      2.0f * (xz - wy)},
+      col_1{2.0f * (xy - wz), 1.0f - 2.0f * (xx + zz), 2.0f * (yz + wx)},
+      col_2{2.0f * (xz + wy), 2.0f * (yz - wx), 1.0f - 2.0f * (xx + yy)};
+
+  /* Apply scale */
+  col_0 *= transform.scl.x;
+  col_1 *= transform.scl.y;
+  col_2 *= transform.scl.z;
+
+  /* Convert to packed float matrix */
+  const MTL::PackedFloat3 p_col_0{col_0.x, col_0.y, col_0.z},
+      p_col_1{col_1.x, col_1.y, col_1.z}, p_col_2{col_2.x, col_2.y, col_2.z},
+      p_col_3{transform.pos.x, transform.pos.y, transform.pos.z};
+
+  return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
+}
 
 namespace CTNM::RHI {
 
 Render_Packet::~Render_Packet() = default;
 
 Render_Packet_AABB::Render_Packet_AABB(
-    const GPU_Context &context, const CTNM::Components::Bounding_Box &bbox) {
+    const GPU_Context &context, const CTNM::Components::Bounding_Box &bbox,
+    const CTNM::Components::Transform &transform) {
   /* Create bounding box buffer */
   m_aabb = to_mtl_aabb(bbox);
   m_aabb_buff = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
@@ -62,29 +115,35 @@ Render_Packet_AABB::Render_Packet_AABB(
                                                  m_scratch_buff, 0);
 
   geom_desc->release();
+  blas_desc->release();
+  geom_array->release();
+
+  /* Transformations */
+  m_transformations = to_mtl_transformations_matrix(transform);
 }
 
-MTL::AxisAlignedBoundingBox Render_Packet_AABB::to_mtl_aabb(
-    const CTNM::Components::Bounding_Box &bbox) const {
-  MTL::AxisAlignedBoundingBox aabb;
-  switch (bbox.style) {
-  case CTNM::Components::Bounding_Box_Style::Sphere:
-    aabb.min = {-bbox.d, -bbox.d, -bbox.d};
-    aabb.max = {bbox.d, bbox.d, bbox.d};
-    break;
+Render_Packet_AABB::~Render_Packet_AABB() {
+  if (m_blas) {
+    m_blas->release();
+    m_blas = nullptr;
+  }
 
-  default:
-    throw std::runtime_error("Invalid bounding box style");
-  };
+  if (m_scratch_buff) {
+    m_scratch_buff->release();
+    m_scratch_buff = nullptr;
+  }
 
-  return aabb;
+  if (m_aabb_buff) {
+    m_aabb_buff->release();
+    m_aabb_buff = nullptr;
+  }
 }
 
 bool Render_Packet_AABB::needs_refit(
     const CTNM::Components::Bounding_Box &bbox_new) const {
   /* If the bounding box has changed, object needs refit
-   * approx_eq is used to prevent refitting with negligable changes in bounding
-   * box size
+   * approx_eq is used to prevent refitting with negligable changes in
+   * bounding box size
    * */
   MTL::AxisAlignedBoundingBox aabb_new = to_mtl_aabb(bbox_new);
   return !(approx_eq(m_aabb.min.x, aabb_new.min.x) &&
@@ -128,15 +187,31 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
   MTL::AccelerationStructure *blas_new;
   context.as_cmd_enc->refitAccelerationStructure(m_blas, blas_desc, blas_new,
                                                  m_scratch_buff, 0);
+
+  m_blas->release();
   m_blas = blas_new;
 
+  blas_desc->release();
+  geom_array->release();
   geom_desc->release();
 }
 
-void Render_Packet_AABB::smart_refit(
-    const GPU_Context &context, const CTNM::Components::Bounding_Box &bbox) {
+void Render_Packet_AABB::smart_update(
+    const GPU_Context &context, const CTNM::Components::Bounding_Box &bbox,
+    const CTNM::Components::Transform &transform) {
   if (needs_refit(bbox))
     refit(context, bbox);
+
+  update_transformations(transform);
+}
+
+void Render_Packet_AABB::update_transformations(
+    const CTNM::Components::Transform &transform) {
+  m_transformations = to_mtl_transformations_matrix(transform);
+}
+
+MTL::PackedFloat4x3 Render_Packet_AABB::get_transformations() const {
+  return m_transformations;
 }
 
 } // namespace CTNM::RHI

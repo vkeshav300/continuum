@@ -7,8 +7,8 @@
 namespace CTNM::RHI {
 
 struct GPU_Context {
-  MTL::Device *device;
-  MTL::AccelerationStructureCommandEncoder *as_cmd_enc;
+  MTL::Device *device = nullptr;
+  MTL::AccelerationStructureCommandEncoder *as_cmd_enc = nullptr;
 };
 
 } // namespace CTNM::RHI

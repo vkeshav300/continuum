@@ -26,18 +26,19 @@ enum Return_Code : uint8_t {
 class GPU_Interface {
 private:
   /* Window interface */
-  GLFWwindow *m_window;
-  NS::Window *m_ns_window;
+  GLFWwindow *m_window = nullptr;
+  NS::Window *m_ns_window = nullptr;
 
   /* Metal rendering */
-  CA::MetalLayer *m_layer;
-  CA::MetalDrawable *m_drawable;
+  CA::MetalLayer *m_layer = nullptr;
+  CA::MetalDrawable *m_drawable = nullptr;
 
-  MTL::Device *m_device;
-  MTL::Library *m_library;
-  MTL::CommandQueue *m_cmd_queue;
-  MTL::CommandBuffer *m_cmd_buff;
-  MTL::AccelerationStructureCommandEncoder *m_as_cmd_enc;
+  MTL::Device *m_device = nullptr;
+  MTL::Library *m_library = nullptr;
+  MTL::CommandQueue *m_cmd_queue = nullptr;
+  MTL::CommandBuffer *m_cmd_buff = nullptr;
+  MTL::AccelerationStructureCommandEncoder *m_as_cmd_enc = nullptr;
+  bool m_cmd_buff_commited = false, m_encoding_ended = false;
 
   static void error_callback(const int code, const char *description);
 
@@ -50,6 +51,7 @@ public:
   GPU_Interface(const uint16_t &width, const uint16_t &height);
   ~GPU_Interface();
 
+  void cycle_gpu_context();
   GPU_Context get_gpu_context() const;
 
   void next_drawable();

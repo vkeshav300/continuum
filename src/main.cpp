@@ -27,8 +27,9 @@ int main(int argc, char *argv[]) {
 
   entt::registry registry;
   entt::entity entity = registry.create();
-  registry.emplace<CTNM::Components::Transform>(entity,
-                                                vec_f3{0.0f, 0.0f, 0.0f});
+  registry.emplace<CTNM::Components::Transform>(
+      entity, vec_f3{0.0f, 0.0f, 0.0f}, vec_f3{1.0f, 1.0f, 1.0f},
+      vec_f4{0.0f, 0.0f, 0.0f, 0.0f});
   registry.emplace<CTNM::Components::Bounding_Box>(
       entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
 
@@ -39,6 +40,7 @@ int main(int argc, char *argv[]) {
   CTNM::RHI::GPU_Interface interface(800, 600);
 
   while (!interface.should_close()) {
+    interface.cycle_gpu_context();
     stager.stage(registry, interface.get_gpu_context());
 
     if (interface.render(stager.get_render_packets()) ==

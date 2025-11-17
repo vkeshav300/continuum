@@ -87,14 +87,52 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
  * releases owned Metal objects (command queue, library, device).
  */
 GPU_Interface::~GPU_Interface() {
-  if (m_window)
+  if (m_window) {
     glfwDestroyWindow(m_window);
+    m_window = nullptr;
+    m_ns_window = nullptr;
+  }
 
   glfwTerminate();
 
-  m_cmd_queue->release();
-  m_library->release();
-  m_device->release();
+  if (m_as_cmd_enc) {
+    if (!m_encoding_ended)
+      m_as_cmd_enc->endEncoding();
+    m_as_cmd_enc->release();
+    m_as_cmd_enc = nullptr;
+  }
+
+  if (m_cmd_buff) {
+    if (!m_cmd_buff_commited)
+      m_cmd_buff->commit();
+    m_cmd_buff->release();
+    m_cmd_buff = nullptr;
+  }
+
+  if (m_cmd_queue) {
+    m_cmd_queue->release();
+    m_cmd_queue = nullptr;
+  }
+
+  if (m_library) {
+    m_library->release();
+    m_library = nullptr;
+  }
+
+  if (m_device) {
+    m_device->release();
+    m_device = nullptr;
+  }
+
+  if (m_drawable) {
+    m_drawable->release();
+    m_drawable = nullptr;
+  }
+
+  if (m_layer) {
+    m_layer->release();
+    m_layer = nullptr;
+  }
 }
 
 void GPU_Interface::error_callback(const int code, const char *description) {
@@ -117,11 +155,32 @@ void GPU_Interface::resize_framebuffer(const int width, const int height) {
   }
 }
 
+void GPU_Interface::cycle_gpu_context() {
+  if (m_as_cmd_enc) {
+    if (!m_encoding_ended)
+      m_as_cmd_enc->endEncoding();
+    m_as_cmd_enc->release();
+  }
+
+  if (m_cmd_buff) {
+    if (!m_cmd_buff_commited)
+      m_cmd_buff->commit();
+    m_cmd_buff->release();
+  }
+
+  m_cmd_buff_commited = m_encoding_ended = false;
+  m_cmd_buff = m_cmd_queue->commandBuffer();
+  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
+}
+
 GPU_Context GPU_Interface::get_gpu_context() const {
   return {m_device, m_as_cmd_enc};
 }
 
-void GPU_Interface::next_drawable() { m_drawable = m_layer->nextDrawable(); }
+void GPU_Interface::next_drawable() {
+  m_drawable->release();
+  m_drawable = m_layer->nextDrawable();
+}
 
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
@@ -130,16 +189,12 @@ uint8_t GPU_Interface::render(
   if (!m_drawable)
     return Return_Code::Skip;
 
-  m_cmd_buff = m_cmd_queue->commandBuffer();
-
-  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
-
-  for (const auto &[_, packet] : render_packets) {
-  }
+  cycle_gpu_context();
 
   m_cmd_buff->presentDrawable(m_drawable);
   m_as_cmd_enc->endEncoding();
   m_cmd_buff->commit();
+  m_cmd_buff_commited = m_encoding_ended = true;
 
 #ifdef DEBUG
   m_cmd_buff->waitUntilCompleted();

@@ -12,8 +12,8 @@ struct vec_f3 {
 };
 
 struct vec_f4 {
-  float w;
   float x;
   float y;
   float z;
+  float w;
 };

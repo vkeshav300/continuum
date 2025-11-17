@@ -18,16 +18,16 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
 
   for (const auto &e : entities) {
     /* Create bounding box */
-    const Components::Bounding_Box &bbox =
-        registry.get<Components::Bounding_Box>(e);
+    const auto &[bbox, transform] =
+        registry.get<Components::Bounding_Box, Components::Transform>(e);
 
     if (m_render_packets.find(e) !=
         m_render_packets
             .end()) { // For entities that already have associated packets
-      m_render_packets[e]->smart_refit(context, bbox);
+      m_render_packets[e]->smart_update(context, bbox, transform);
     } else { // For new entities
       m_render_packets[e] =
-          std::make_unique<RHI::Render_Packet_AABB>(context, bbox);
+          std::make_unique<RHI::Render_Packet_AABB>(context, bbox, transform);
     }
   }
 }
