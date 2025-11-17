@@ -191,6 +191,46 @@ uint8_t GPU_Interface::render(
 
   cycle_gpu_context();
 
+  /* Create acceleration structure instances buffer */
+  const size_t instance_count = render_packets.size();
+  MTL::Buffer *instances_buff = m_device->newBuffer(
+      instance_count * sizeof(MTL::AccelerationStructureInstanceDescriptor),
+      MTL::ResourceStorageModeShared);
+
+  MTL::AccelerationStructureInstanceDescriptor *instances =
+      reinterpret_cast<MTL::AccelerationStructureInstanceDescriptor *>(
+          instances_buff->contents());
+
+  size_t idx = 0;
+  for (const auto &[_, packet] : render_packets) {
+    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx++];
+    asi_desc.accelerationStructureIndex = 0;
+    asi_desc.transformationMatrix = packet->get_transformations();
+    asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
+    asi_desc.mask = 0xFF;
+    asi_desc.intersectionFunctionTableOffset = 0;
+    // asi_desc.userID;
+    // asi_desc.accelerationStructureIndex;
+  }
+
+  /* Create TLAS */
+  MTL::InstanceAccelerationStructureDescriptor *tlas_desc =
+      MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
+  tlas_desc->setInstanceCount(instance_count);
+  tlas_desc->setInstanceDescriptorBuffer(instances_buff);
+  tlas_desc->setInstanceDescriptorBufferOffset(0);
+
+  MTL::AccelerationStructureSizes sizes =
+      m_device->accelerationStructureSizes(tlas_desc);
+  MTL::Buffer *scratch_buff = m_device->newBuffer(
+      sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
+
+  MTL::AccelerationStructure *tlas =
+      m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+  m_as_cmd_enc->buildAccelerationStructure(tlas, tlas_desc, scratch_buff, 0);
+
+  tlas_desc->release();
+
   m_cmd_buff->presentDrawable(m_drawable);
   m_as_cmd_enc->endEncoding();
   m_cmd_buff->commit();
