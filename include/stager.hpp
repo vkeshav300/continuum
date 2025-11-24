@@ -13,7 +13,7 @@ namespace CTNM {
 class Stager {
 private:
   std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>
-      m_render_packets;
+      m_packets;
 
 public:
   Stager() = default;

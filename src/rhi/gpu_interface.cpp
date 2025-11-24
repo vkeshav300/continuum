@@ -203,14 +203,13 @@ uint8_t GPU_Interface::render(
 
   size_t idx = 0;
   for (const auto &[_, packet] : render_packets) {
-    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx++];
-    asi_desc.accelerationStructureIndex = 0;
+    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx];
+    asi_desc.accelerationStructureIndex = idx++;
     asi_desc.transformationMatrix = packet->get_transformations();
     asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
     asi_desc.mask = 0xFF;
     asi_desc.intersectionFunctionTableOffset = 0;
     // asi_desc.userID;
-    // asi_desc.accelerationStructureIndex;
   }
 
   /* Create TLAS */

@@ -39,8 +39,9 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
    * */
   vector_float3 axis =
       vector_float3{transform.rtn.x, transform.rtn.y, transform.rtn.z};
-  axis = simd::length(axis) > 1e-8f ? simd::normalize(axis)
-                                    : vector_float3{0.0f, 0.0f, 1.0f};
+  axis = approx_eq(simd::length(axis), 0, 1e-6f)
+             ? vector_float3{0.0f, 0.0f, 0.0f}
+             : simd::normalize(axis);
   const float half = 0.5 * transform.rtn.w, qw = std::cosf(half);
   const vector_float3 qv = axis * std::sinf(half);
 
@@ -59,7 +60,7 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   col_1 *= transform.scl.y;
   col_2 *= transform.scl.z;
 
-  /* Convert to packed float matrix */
+  /* Convert to packed float matrix (add translation column) */
   const MTL::PackedFloat3 p_col_0{col_0.x, col_0.y, col_0.z},
       p_col_1{col_1.x, col_1.y, col_1.z}, p_col_2{col_2.x, col_2.y, col_2.z},
       p_col_3{transform.pos.x, transform.pos.y, transform.pos.z};
@@ -75,48 +76,22 @@ Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::Bounding_Box &bbox,
     const CTNM::Components::Transform &transform) {
   /* Create bounding box buffer */
-  m_aabb = to_mtl_aabb(bbox);
   m_aabb_buff = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
                                           MTL::ResourceStorageModeShared);
-  std::memcpy(m_aabb_buff->contents(), &m_aabb,
-              sizeof(m_aabb)); // Copy aabb to buffer
-
-  /* Create geometry descriptor */
-  MTL::AccelerationStructureBoundingBoxGeometryDescriptor *geom_desc =
-      MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()->init();
-  geom_desc->setBoundingBoxBuffer(m_aabb_buff);
-  geom_desc->setBoundingBoxCount(1);
-  geom_desc->setOpaque(true);
-
-  /* Create acceleration structure descriptor */
-  MTL::PrimitiveAccelerationStructureDescriptor *blas_desc =
-      MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-
-  /* Attach geometry descriptor */
-  MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {geom_desc};
-  NS::Array *geom_array = NS::Array::array(
-      reinterpret_cast<NS::Object **>(geom_descs),
-      1); // blas_desc->setGeometryDescriptors requires NS::Array which can
-          // only be composed of NS::Objects, so reinterpret cast is used
-  blas_desc->setGeometryDescriptors(geom_array);
-  blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
 
   /* Create build scratch buffer */
+  create_blas_desc(bbox);
   MTL::AccelerationStructureSizes sizes =
-      context.device->accelerationStructureSizes(blas_desc);
+      context.device->accelerationStructureSizes(m_blas_desc);
 
   m_scratch_buff = context.device->newBuffer(sizes.buildScratchBufferSize,
                                              MTL::ResourceStorageModePrivate);
 
   /* Create acceleration structure */
-  m_blas = context.device->newAccelerationStructure(blas_desc);
+  m_blas = context.device->newAccelerationStructure(m_blas_desc);
 
-  context.as_cmd_enc->buildAccelerationStructure(m_blas, blas_desc,
+  context.as_cmd_enc->buildAccelerationStructure(m_blas, m_blas_desc,
                                                  m_scratch_buff, 0);
-
-  geom_desc->release();
-  blas_desc->release();
-  geom_array->release();
 
   /* Transformations */
   m_transformations = to_mtl_transformations_matrix(transform);
@@ -128,6 +103,11 @@ Render_Packet_AABB::~Render_Packet_AABB() {
     m_blas = nullptr;
   }
 
+  if (m_blas_desc) {
+    m_blas_desc->release();
+    m_blas_desc = nullptr;
+  }
+
   if (m_scratch_buff) {
     m_scratch_buff->release();
     m_scratch_buff = nullptr;
@@ -137,6 +117,38 @@ Render_Packet_AABB::~Render_Packet_AABB() {
     m_aabb_buff->release();
     m_aabb_buff = nullptr;
   }
+}
+
+void Render_Packet_AABB::create_blas_desc(
+    const CTNM::Components::Bounding_Box &bbox) {
+  if (m_blas_desc)
+    m_blas_desc->release();
+
+  /* Create geometry descriptor */
+  m_aabb = to_mtl_aabb(bbox);
+  std::memcpy(m_aabb_buff->contents(), &m_aabb,
+              sizeof(m_aabb)); // Copy aabb to buffer
+
+  MTL::AccelerationStructureBoundingBoxGeometryDescriptor *geom_desc =
+      MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()->init();
+  geom_desc->setBoundingBoxBuffer(m_aabb_buff);
+  geom_desc->setBoundingBoxCount(1);
+  geom_desc->setOpaque(true);
+
+  MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {geom_desc};
+  NS::Array *geom_array = NS::Array::array(
+      reinterpret_cast<NS::Object **>(geom_descs),
+      1); // m_blas_desc->setGeometryDescriptors requires NS::Array which can
+          // only be composed of NS::Objects, so reinterpret cast is used
+
+  /* Create acceleration structure descriptor */
+  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc =
+      MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
+  m_blas_desc->setGeometryDescriptors(geom_array);
+  m_blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+
+  geom_array->release();
+  geom_desc->release();
 }
 
 bool Render_Packet_AABB::needs_refit(
@@ -156,44 +168,13 @@ bool Render_Packet_AABB::needs_refit(
 
 void Render_Packet_AABB::refit(const GPU_Context &context,
                                const CTNM::Components::Bounding_Box &bbox) {
-  /* Create bounding box buffer */
-  m_aabb = to_mtl_aabb(bbox);
-  m_aabb_buff = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
-                                          MTL::ResourceStorageModeShared);
-  std::memcpy(m_aabb_buff->contents(), &m_aabb,
-              sizeof(m_aabb)); // Copy aabb to buffer
-
-  /* Create geometry descriptor */
-  MTL::AccelerationStructureBoundingBoxGeometryDescriptor *geom_desc =
-      MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()->init();
-  geom_desc->setBoundingBoxBuffer(m_aabb_buff);
-  geom_desc->setBoundingBoxCount(1);
-  geom_desc->setOpaque(true);
-
-  /* Create acceleration structure descriptor */
-  MTL::PrimitiveAccelerationStructureDescriptor *blas_desc =
-      MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-
-  /* Attach geometry descriptor */
-  MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {geom_desc};
-  NS::Array *geom_array = NS::Array::array(
-      reinterpret_cast<NS::Object **>(geom_descs),
-      1); // blas_desc->setGeometryDescriptors requires NS::Array which can
-          // only be composed of NS::Objects, so reinterpret cast is used
-  blas_desc->setGeometryDescriptors(geom_array);
-  blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
-
-  /* Refit acceleration structure */
+  create_blas_desc(bbox);
   MTL::AccelerationStructure *blas_new;
-  context.as_cmd_enc->refitAccelerationStructure(m_blas, blas_desc, blas_new,
+  context.as_cmd_enc->refitAccelerationStructure(m_blas, m_blas_desc, blas_new,
                                                  m_scratch_buff, 0);
 
   m_blas->release();
   m_blas = blas_new;
-
-  blas_desc->release();
-  geom_array->release();
-  geom_desc->release();
 }
 
 void Render_Packet_AABB::smart_update(

@@ -10,7 +10,7 @@ namespace CTNM {
 Stager::~Stager() {}
 
 void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
-  m_render_packets.erase(e);
+  m_packets.erase(e);
 }
 
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
@@ -21,12 +21,11 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
     const auto &[bbox, transform] =
         registry.get<Components::Bounding_Box, Components::Transform>(e);
 
-    if (m_render_packets.find(e) !=
-        m_render_packets
-            .end()) { // For entities that already have associated packets
-      m_render_packets[e]->smart_update(context, bbox, transform);
+    if (m_packets.find(e) !=
+        m_packets.end()) { // For entities that already have associated packets
+      m_packets[e]->smart_update(context, bbox, transform);
     } else { // For new entities
-      m_render_packets[e] =
+      m_packets[e] =
           std::make_unique<RHI::Render_Packet_AABB>(context, bbox, transform);
     }
   }
@@ -34,7 +33,7 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
 
 const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
 Stager::get_render_packets() const {
-  return m_render_packets;
+  return m_packets;
 }
 
 } // namespace CTNM

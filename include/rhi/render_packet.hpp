@@ -42,11 +42,14 @@ public:
 class Render_Packet_AABB : public Render_Packet {
 private:
   MTL::AxisAlignedBoundingBox m_aabb;
+  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc;
   MTL::AccelerationStructure *m_blas = nullptr;
   MTL::Buffer *m_aabb_buff = nullptr;
   MTL::Buffer *m_scratch_buff = nullptr;
 
   MTL::PackedFloat4x3 m_transformations;
+
+  void create_blas_desc(const CTNM::Components::Bounding_Box &bbox);
 
 public:
   Render_Packet_AABB(const GPU_Context &context,
