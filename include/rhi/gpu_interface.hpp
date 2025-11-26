@@ -1,17 +1,18 @@
 #pragma once
 #include "gpu_context.hpp"
 #include "render_packet.hpp"
+#include "utils.hpp"
 
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 
+#include <GLFW/glfw3.h>
 #include <entt/entt.hpp>
 
 #ifdef __APPLE__
 
 #include <AppKit/AppKit.hpp>
-#include <GLFW/glfw3.h>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/QuartzCore.hpp>
 
@@ -23,6 +24,11 @@ enum Return_Code : uint8_t {
   Fatal,
 };
 
+struct Dispatch_Size {
+  MTL::Size grid;
+  MTL::Size tg;
+};
+
 class GPU_Interface {
 private:
   /* Window interface */
@@ -30,22 +36,24 @@ private:
   NS::Window *m_ns_window = nullptr;
 
   /* Metal rendering */
-  CA::MetalLayer *m_layer = nullptr;
-  CA::MetalDrawable *m_drawable = nullptr;
+  MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
+  MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
-  MTL::Device *m_device = nullptr;
-  MTL::Library *m_library = nullptr;
-  MTL::CommandQueue *m_cmd_queue = nullptr;
-  MTL::CommandBuffer *m_cmd_buff = nullptr;
-  MTL::AccelerationStructureCommandEncoder *m_as_cmd_enc = nullptr;
-  bool m_cmd_buff_commited = false, m_encoding_ended = false;
+  MTL_Ptr<MTL::Device> m_device = nullptr;
 
-  static void error_callback(const int code, const char *description);
+  MTL_Ptr<MTL::Library> m_lib = nullptr;
+  MTL_Ptr<MTL::Function> m_lib_fn_rt = nullptr;
+  MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr;
 
-  static void framebuffer_size_callback(GLFWwindow *window, const int width,
-                                        const int height);
+  MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
+  MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
+  MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_as_cmd_enc = nullptr;
+  MTL_Ptr<MTL::ComputeCommandEncoder> m_comp_cmd_enc = nullptr;
 
-  void resize_framebuffer(const int width, const int height);
+  static void glfw_error_callback(const int code, const char *description);
+  static void glfw_framebuffer_size_callback(GLFWwindow *window,
+                                             const int width, const int height);
+  void glfw_resize_framebuffer(const int width, const int height);
 
 public:
   GPU_Interface(const uint16_t &width, const uint16_t &height);

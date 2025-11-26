@@ -2,6 +2,7 @@
 #include "rhi/bridges.hpp"
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
+#include "rhi/utils.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -10,13 +11,13 @@
 #include <string>
 #include <unordered_map>
 
+#include <GLFW/glfw3.h>
 #include <entt/entt.hpp>
 
 #ifdef __APPLE__
 
 #include <AppKit/AppKit.hpp>
 #include <Foundation/Foundation.hpp>
-#include <GLFW/glfw3.h>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/QuartzCore.hpp>
 #include <simd/simd.h>
@@ -56,25 +57,26 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
   }
 
   glfwSetWindowUserPointer(m_window, this);
-  glfwSetErrorCallback(error_callback);
+  glfwSetErrorCallback(glfw_error_callback);
   glfwSetFramebufferSizeCallback(
-      m_window, framebuffer_size_callback); // Executed upon window resizing
+      m_window,
+      glfw_framebuffer_size_callback); // Executed upon window resizing
 
   int fb_width, fb_height;
   glfwGetFramebufferSize(m_window, &fb_width, &fb_height);
-  m_layer->setDevice(m_device);
+  m_layer->setDevice(m_device.get());
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
   m_layer->setDrawableSize(CGSizeMake(fb_width, fb_height));
 
-  m_ns_window = Bridges::get_ns_window(m_window, m_layer);
+  m_ns_window = Bridges::get_ns_window(m_window, m_layer.get());
 
-  /* Metal */
-  m_library = m_device->newDefaultLibrary();
-
-  /* Loads shaders (no shaders currently present)
-  if (!m_library)
-    throw std::runtime_error("Failed to load library");
-    */
+  /* Load metal shaders */
+  // m_lib = m_device->newDefaultLibrary();
+  // if (!m_lib)
+  // throw std::runtime_error("Failed to load default library");
+  //
+  // m_lib_fn_raytracer = m_lib->newFunction(
+  // NS::String::string("raytracer", NS::UTF8StringEncoding));
 
   m_cmd_queue = m_device->newCommandQueue();
 }
@@ -84,7 +86,7 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
  * subsystems.
  *
  * Destroys the GLFW window if one exists, terminates the GLFW library, and
- * releases owned Metal objects (command queue, library, device).
+ * releases owned Metal objects
  */
 GPU_Interface::~GPU_Interface() {
   if (m_window) {
@@ -94,91 +96,44 @@ GPU_Interface::~GPU_Interface() {
   }
 
   glfwTerminate();
-
-  if (m_as_cmd_enc) {
-    if (!m_encoding_ended)
-      m_as_cmd_enc->endEncoding();
-    m_as_cmd_enc->release();
-    m_as_cmd_enc = nullptr;
-  }
-
-  if (m_cmd_buff) {
-    if (!m_cmd_buff_commited)
-      m_cmd_buff->commit();
-    m_cmd_buff->release();
-    m_cmd_buff = nullptr;
-  }
-
-  if (m_cmd_queue) {
-    m_cmd_queue->release();
-    m_cmd_queue = nullptr;
-  }
-
-  if (m_library) {
-    m_library->release();
-    m_library = nullptr;
-  }
-
-  if (m_device) {
-    m_device->release();
-    m_device = nullptr;
-  }
-
-  if (m_drawable) {
-    m_drawable->release();
-    m_drawable = nullptr;
-  }
-
-  if (m_layer) {
-    m_layer->release();
-    m_layer = nullptr;
-  }
 }
 
-void GPU_Interface::error_callback(const int code, const char *description) {
-  throw std::runtime_error("GLFW error callback with code " +
-                           std::to_string(code) + ", " +
+void GPU_Interface::glfw_error_callback(const int code,
+                                        const char *description) {
+  throw std::runtime_error("[Error]\t(GLFW " + std::to_string(code) + ") " +
                            std::string(description));
 }
 
-void GPU_Interface::framebuffer_size_callback(GLFWwindow *window,
-                                              const int width,
-                                              const int height) {
+void GPU_Interface::glfw_framebuffer_size_callback(GLFWwindow *window,
+                                                   const int width,
+                                                   const int height) {
   reinterpret_cast<GPU_Interface *>(glfwGetWindowUserPointer(window))
-      ->resize_framebuffer(width, height);
+      ->glfw_resize_framebuffer(width, height);
 }
 
-void GPU_Interface::resize_framebuffer(const int width, const int height) {
-  if (m_layer) {
+void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
+  if (m_layer.get()) {
     m_layer->setDrawableSize(CGSizeMake(width, height));
     next_drawable();
   }
 }
 
 void GPU_Interface::cycle_gpu_context() {
-  if (m_as_cmd_enc) {
-    if (!m_encoding_ended)
-      m_as_cmd_enc->endEncoding();
-    m_as_cmd_enc->release();
-  }
+  m_as_cmd_enc.smart_release();
+  m_cmd_buff.smart_release();
 
-  if (m_cmd_buff) {
-    if (!m_cmd_buff_commited)
-      m_cmd_buff->commit();
-    m_cmd_buff->release();
-  }
-
-  m_cmd_buff_commited = m_encoding_ended = false;
+  m_cmd_buff.set_mark(false);
+  m_as_cmd_enc.set_mark(false);
   m_cmd_buff = m_cmd_queue->commandBuffer();
   m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
 }
 
 GPU_Context GPU_Interface::get_gpu_context() const {
-  return {m_device, m_as_cmd_enc};
+  return {m_device.get(), m_as_cmd_enc.get()};
 }
 
 void GPU_Interface::next_drawable() {
-  m_drawable->release();
+  m_drawable.smart_release();
   m_drawable = m_layer->nextDrawable();
 }
 
@@ -186,10 +141,11 @@ uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets) {
   next_drawable();
-  if (!m_drawable)
+  if (!m_drawable.get())
     return Return_Code::Skip;
 
-  cycle_gpu_context();
+  if (!m_as_cmd_enc.get() || !m_cmd_buff.get())
+    cycle_gpu_context();
 
   /* Create acceleration structure instances buffer */
   const size_t instance_count = render_packets.size();
@@ -229,11 +185,22 @@ uint8_t GPU_Interface::render(
   m_as_cmd_enc->buildAccelerationStructure(tlas, tlas_desc, scratch_buff, 0);
 
   tlas_desc->release();
-
-  m_cmd_buff->presentDrawable(m_drawable);
   m_as_cmd_enc->endEncoding();
+  m_as_cmd_enc.set_mark(true);
+
+  /* Cycle to compute encoder */
+  m_comp_cmd_enc.smart_release();
+  m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder();
+  // m_comp_cmd_enc->setComputePipelineState(m_rt_ps);
+  m_comp_cmd_enc->setAccelerationStructure(tlas, 0);
+  // m_comp_cmd_enc->dispatchThreads(...) figure this out to run raytracer
+
+  m_comp_cmd_enc->endEncoding();
+  m_comp_cmd_enc.set_mark(true);
+
+  m_cmd_buff->presentDrawable(m_drawable.get());
   m_cmd_buff->commit();
-  m_cmd_buff_commited = m_encoding_ended = true;
+  m_cmd_buff.set_mark(true);
 
 #ifdef DEBUG
   m_cmd_buff->waitUntilCompleted();

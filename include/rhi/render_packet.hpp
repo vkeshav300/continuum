@@ -2,6 +2,7 @@
 
 #include "../dtypes/components.h"
 #include "gpu_context.hpp"
+#include "utils.hpp"
 
 #include <entt/entt.hpp>
 
@@ -42,10 +43,10 @@ public:
 class Render_Packet_AABB : public Render_Packet {
 private:
   MTL::AxisAlignedBoundingBox m_aabb;
-  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc = nullptr;
-  MTL::AccelerationStructure *m_blas = nullptr;
-  MTL::Buffer *m_aabb_buff = nullptr;
-  MTL::Buffer *m_scratch_buff = nullptr;
+  MTL_Ptr<MTL::PrimitiveAccelerationStructureDescriptor> m_blas_desc = nullptr;
+  MTL_Ptr<MTL::AccelerationStructure> m_blas = nullptr;
+  MTL_Ptr<MTL::Buffer> m_aabb_buff = nullptr;
+  MTL_Ptr<MTL::Buffer> m_scratch_buff = nullptr;
 
   MTL::PackedFloat4x3 m_transformations;
 
