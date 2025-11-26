@@ -42,7 +42,7 @@ public:
 class Render_Packet_AABB : public Render_Packet {
 private:
   MTL::AxisAlignedBoundingBox m_aabb;
-  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc;
+  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc = nullptr;
   MTL::AccelerationStructure *m_blas = nullptr;
   MTL::Buffer *m_aabb_buff = nullptr;
   MTL::Buffer *m_scratch_buff = nullptr;

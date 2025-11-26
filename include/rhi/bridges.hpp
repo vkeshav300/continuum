@@ -1,15 +1,15 @@
 #pragma once
 
-#ifdef __APPLE__
-
-#include <AppKit/AppKit.hpp>
-#include <QuartzCore/QuartzCore.hpp>
-
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #define GLFW_EXPOSE_NATIVE_COCOA
 #include <GLFW/glfw3native.h>
+
+#ifdef __APPLE__
+
+#include <AppKit/AppKit.hpp>
+#include <QuartzCore/QuartzCore.hpp>
 
 namespace CTNM::RHI::Bridges {
 
