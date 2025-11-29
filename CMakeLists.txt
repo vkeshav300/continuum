@@ -78,7 +78,7 @@ foreach(SHADER ${METAL_SHADERS})
     set(AIR_FILE "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.air")
     add_custom_command(
         OUTPUT ${AIR_FILE}
-        COMMAND xcrun -sdk macosx metal -std=metal3.1 -c ${SHADER} -o ${AIR_FILE}
+        COMMAND xcrun -sdk macosx metal -std=metal3.1 -I${CMAKE_SOURCE_DIR}/include -c ${SHADER} -o ${AIR_FILE}
         DEPENDS ${SHADER}
         COMMENT "Building MTL object ${AIR_FILE}" # Make it look cool :)
         VERBATIM

@@ -10,8 +10,8 @@
 #include <cstring>
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 #include <entt/entt.hpp>
@@ -26,80 +26,13 @@
 
 namespace CTNM::RHI {
 
-/**
- * @brief Construct a macOS Metal renderer and create its GLFW window and layer.
- *
- * Initializes the system Metal device and CAMetalLayer, configures GLFW for
- * Cocoa, creates a window sized to the given dimensions, registers GLFW error
- * and framebuffer-size callbacks, sets the Metal layer's device, pixel format,
- * and drawable size, and obtains the corresponding NSWindow bridge.
- *
- * @param width Initial window framebuffer width in pixels.
- * @param height Initial window framebuffer height in pixels.
- *
- * @throws std::runtime_error If GLFW fails to initialize or the window cannot
- * be created.
- */
 GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
     : m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()) {
-  /* Window */
-  glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
-  glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
-
-  if (!glfwInit())
-    throw std::runtime_error("Failed to initialize GLFW");
-
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
-
-  if (!m_window) {
-    glfwTerminate();
-    throw std::runtime_error("Failed to create window");
-  }
-
-  glfwSetWindowUserPointer(m_window, this);
-  glfwSetErrorCallback(glfw_error_callback);
-  glfwSetFramebufferSizeCallback(
-      m_window,
-      glfw_framebuffer_size_callback); // Executed upon window resizing
-
-  int fb_width, fb_height;
-  glfwGetFramebufferSize(m_window, &fb_width, &fb_height);
-  m_layer->setDevice(m_device.get());
-  m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  m_layer->setDrawableSize(CGSizeMake(fb_width, fb_height));
-
-  m_ns_window = Bridges::get_ns_window(m_window, m_layer.get());
-
-  /* Load metal shaders */
-  m_lib = m_device->newDefaultLibrary();
-  if (!m_lib.get())
-    throw std::runtime_error("Failed to load default library");
-
-  m_cam_buff = m_device->newBuffer(sizeof(GPU_Types::Camera),
-                                   MTL::ResourceStorageModeShared);
-  m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
-                                       MTL::ResourceStorageModeShared);
-
-  m_cmd_queue = m_device->newCommandQueue();
-}
-
-/**
- * @brief Cleans up renderer resources and shuts down the platform/graphics
- * subsystems.
- *
- * Destroys the GLFW window if one exists, terminates the GLFW library, and
- * releases owned Metal objects
- */
-GPU_Interface::~GPU_Interface() {
-  if (m_window) {
-    glfwDestroyWindow(m_window);
-    m_window = nullptr;
-    m_ns_window = nullptr;
-  }
-
-  glfwTerminate();
+  glfw_create_window(width, height);
+  mtl_load();
+  mtl_create_buffs();
+  mtl_create_pipelines();
 }
 
 void GPU_Interface::glfw_error_callback(const int code,
@@ -124,6 +57,99 @@ void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
     m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
                                          MTL::ResourceStorageModeShared);
   }
+}
+
+void GPU_Interface::glfw_create_window(const uint16_t &width,
+                                       const uint16_t &height) {
+  /* Initialize GLFW */
+  glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
+  glfwInitHint(GLFW_COCOA_MENUBAR, GLFW_TRUE);
+  if (!glfwInit())
+    throw std::runtime_error("Failed to initialize GLFW");
+
+  /* Create GLFW window */
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+  m_window = glfwCreateWindow(width, height, "Continuum", nullptr, nullptr);
+  if (!m_window) {
+    glfwTerminate();
+    throw std::runtime_error("Failed to create window");
+  }
+
+  /* Window setup */
+  glfwSetWindowUserPointer(m_window, this);
+  glfwSetErrorCallback(glfw_error_callback);
+  glfwSetFramebufferSizeCallback(
+      m_window,
+      glfw_framebuffer_size_callback); // Executed upon window resizing
+
+  /* Window binding with Metal */
+  glfwGetFramebufferSize(m_window, &m_fb_width, &m_fb_height);
+  m_layer->setDevice(m_device.get());
+  m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+  m_layer->setDrawableSize(CGSizeMake(m_fb_width, m_fb_height));
+
+  m_ns_window = Bridges::get_ns_window(m_window, m_layer.get());
+}
+
+void GPU_Interface::mtl_load() {
+  m_lib = m_device->newDefaultLibrary();
+  if (!m_lib.get())
+    throw std::runtime_error("Failed to load default library");
+
+  m_cmd_queue = m_device->newCommandQueue();
+}
+
+void GPU_Interface::mtl_create_buffs() {
+  m_cam_buff = m_device->newBuffer(sizeof(GPU_Types::Camera),
+                                   MTL::ResourceStorageModeShared);
+  m_img_out_buff =
+      m_device->newBuffer(m_fb_width * m_fb_height * sizeof(vector_float4),
+                          MTL::ResourceStorageModeShared);
+}
+
+void GPU_Interface::mtl_create_pipelines() {
+  m_raytracing_fn = m_lib->newFunction(NS::String::string(
+      "k_raytracer", NS::StringEncoding::UTF8StringEncoding));
+  if (!m_raytracing_fn.get())
+    throw std::runtime_error("Failed to find k_raytracer in default library");
+
+  NS::Error *error = nullptr;
+  m_raytracing_ps =
+      m_device->newComputePipelineState(m_raytracing_fn.get(), &error);
+  if (!m_raytracing_ps.get())
+    throw std::runtime_error(
+        "Failed to create raytracing compute pipeline state");
+
+  m_sphere_if = m_lib->newFunction(NS::String::string(
+      "sphere_intersection", NS::StringEncoding::UTF8StringEncoding));
+  if (!m_sphere_if.get())
+    throw std::runtime_error(
+        "Failed to find sphere_intersection function in default library");
+
+  m_sphere_if_handle = m_raytracing_ps->functionHandle(m_sphere_if.get());
+  if (!m_sphere_if_handle.get())
+    throw std::runtime_error(
+        "Failed to create function handle for sphere_intersection");
+
+  MTL_Ptr<MTL::IntersectionFunctionTableDescriptor> ift_desc =
+      MTL::IntersectionFunctionTableDescriptor::alloc()->init();
+  ift_desc->setFunctionCount(1);
+
+  m_ift = m_raytracing_ps->newIntersectionFunctionTable(ift_desc.get());
+  if (!m_ift.get())
+    throw std::runtime_error("Failed to create intersection function table");
+
+  m_ift->setFunction(m_sphere_if_handle.get(), 0);
+}
+
+GPU_Interface::~GPU_Interface() {
+  if (m_window) {
+    glfwDestroyWindow(m_window);
+    m_window = nullptr;
+    m_ns_window = nullptr;
+  }
+
+  glfwTerminate();
 }
 
 void GPU_Interface::cycle_gpu_context() {
@@ -156,6 +182,11 @@ uint8_t GPU_Interface::render(
   if (!m_as_cmd_enc.get() || !m_cmd_buff.get())
     cycle_gpu_context();
 
+  if (!render_packets.empty())
+    create_tlas(render_packets);
+  else
+    m_tlas.smart_release();
+
   m_as_cmd_enc->endEncoding();
   m_as_cmd_enc.set_mark(true);
 
@@ -174,9 +205,11 @@ uint8_t GPU_Interface::render(
   /* Cycle to compute encoder */
   m_comp_cmd_enc.smart_release();
   m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder();
-  // m_comp_cmd_enc->setComputePipelineState(m_rt_ps);
-  m_comp_cmd_enc->setAccelerationStructure(
-      render_packets.begin()->second->get_as().get(), 0);
+  m_comp_cmd_enc->setComputePipelineState(m_raytracing_ps.get());
+  if (m_ift.get())
+    m_comp_cmd_enc->setIntersectionFunctionTable(m_ift.get(), 0);
+  if (m_tlas.get())
+    m_comp_cmd_enc->setAccelerationStructure(m_tlas.get(), 0);
   m_comp_cmd_enc->setBuffer(m_cam_buff.get(), 0, 1);
   m_comp_cmd_enc->setBuffer(m_img_out_buff.get(), 0, 2);
   // m_comp_cmd_enc->dispatchThreads(...) figure this out to run raytracer
@@ -193,6 +226,62 @@ uint8_t GPU_Interface::render(
 #endif
 
   return Return_Code::Normal;
+}
+
+void GPU_Interface::create_tlas(
+    const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
+        &render_packets) {
+  if (!m_as_cmd_enc.get())
+    throw std::runtime_error("AS command encoder is not available");
+
+  /* Create instance descriptors buffer */
+  const size_t instance_count = render_packets.size();
+  MTL_Ptr<MTL::Buffer> instances_buff = m_device->newBuffer(
+      instance_count * sizeof(MTL::AccelerationStructureInstanceDescriptor),
+      MTL::ResourceStorageModeShared);
+
+  MTL::AccelerationStructureInstanceDescriptor *instances =
+      reinterpret_cast<MTL::AccelerationStructureInstanceDescriptor *>(
+          instances_buff->contents());
+
+  std::vector<MTL::AccelerationStructure *> blas_handles;
+  blas_handles.reserve(instance_count);
+
+  size_t idx = 0;
+  for (const auto &[_, packet] : render_packets) {
+    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx];
+    blas_handles.emplace_back(packet->get_as().get());
+    asi_desc.accelerationStructureIndex = idx++;
+    asi_desc.transformationMatrix = packet->get_transformations();
+    asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
+    asi_desc.mask = 0xFF;
+    asi_desc.intersectionFunctionTableOffset = 0;
+  }
+
+  /* Create TLAS */
+  MTL_Ptr<MTL::InstanceAccelerationStructureDescriptor> tlas_desc =
+      MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
+  tlas_desc->setInstanceDescriptorBuffer(instances_buff.get());
+  tlas_desc->setInstanceDescriptorStride(
+      sizeof(MTL::AccelerationStructureInstanceDescriptor));
+  tlas_desc->setInstanceCount(idx);
+  tlas_desc->setUsage(MTL::AccelerationStructureUsageNone);
+  if (!blas_handles.empty()) {
+    MTL_Ptr<NS::Array> blas_array =
+        NS::Array::array(reinterpret_cast<NS::Object **>(blas_handles.data()),
+                         blas_handles.size());
+    tlas_desc->setInstancedAccelerationStructures(blas_array.get());
+  }
+
+  MTL::AccelerationStructureSizes sizes =
+      m_device->accelerationStructureSizes(tlas_desc.get());
+  MTL_Ptr<MTL::Buffer> scratch_buff = m_device->newBuffer(
+      sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
+
+  m_tlas.smart_release();
+  m_tlas = m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+  m_as_cmd_enc->buildAccelerationStructure(m_tlas.get(), tlas_desc.get(),
+                                           scratch_buff.get(), 0);
 }
 
 void GPU_Interface::poll_events() const { glfwPollEvents(); }

@@ -10,18 +10,6 @@
 
 #include <entt/entt.hpp>
 
-/**
- * @brief Program entry point that initializes a minimal scene and runs a single
- * preview render.
- *
- * Creates an EnTT registry with one entity (a Transform and a Bounding_Box),
- * constructs an RHI renderer with a fixed viewport size, stages the registry
- * state for rendering, and produces a preview render before exiting.
- *
- * @param argc Number of command-line arguments.
- * @param argv Array of command-line argument strings.
- * @return int `0` on successful execution.
- */
 int main(int argc, char *argv[]) {
   std::cout << "Continuum v0.0.0\n";
 
@@ -30,14 +18,13 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Transform>(
       entity, vec_f3{0.0f, 0.0f, 0.0f}, vec_f3{1.0f, 1.0f, 1.0f},
       vec_f4{0.0f, 0.0f, 0.0f, 0.0f});
-  registry.emplace<CTNM::Components::Bounding_Box>(
-      entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
+  registry.emplace<CTNM::Components::Sphere_AABB>(entity, 1.0f);
   entt::entity camera = registry.create();
   registry.emplace<CTNM::Components::Camera>(entity, vec_f3{-5.0f, 0.0f, 0.0f},
                                              vec_f3{0.0f, 0.0f, 0.0f});
 
   CTNM::Stager stager;
-  registry.on_destroy<CTNM::Components::Bounding_Box>()
+  registry.on_destroy<CTNM::Components::Sphere_AABB>()
       .connect<&CTNM::Stager::callback_bbox_destroyed>(stager);
 
   CTNM::RHI::GPU_Interface interface(800, 600);
@@ -54,7 +41,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* Prevent calling callback which might not exist */
-  registry.on_destroy<CTNM::Components::Bounding_Box>()
+  registry.on_destroy<CTNM::Components::Sphere_AABB>()
       .disconnect<&CTNM::Stager::callback_bbox_destroyed>(stager);
 
   return 0;

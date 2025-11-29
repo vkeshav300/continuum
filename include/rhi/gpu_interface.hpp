@@ -34,27 +34,42 @@ private:
   /* Window interface */
   GLFWwindow *m_window = nullptr;
   NS::Window *m_ns_window = nullptr;
+  int m_fb_width, m_fb_height;
 
   /* Metal rendering */
   MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
   MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
   MTL_Ptr<MTL::Device> m_device = nullptr;
+  MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
-  MTL_Ptr<MTL::Function> m_raytracer_fn = nullptr;
-  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
+  MTL_Ptr<MTL::Function> m_raytracing_fn = nullptr;
+  MTL_Ptr<MTL::Function> m_sphere_if = nullptr;
+  MTL_Ptr<MTL::FunctionHandle> m_sphere_if_handle = nullptr;
 
-  MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
+  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
+  MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
+
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
   MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_as_cmd_enc = nullptr;
   MTL_Ptr<MTL::ComputeCommandEncoder> m_comp_cmd_enc = nullptr;
   MTL_Ptr<MTL::Buffer> m_cam_buff = nullptr, m_img_out_buff = nullptr;
+  MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
+
+  void mtl_load();
+  void mtl_create_buffs();
+  void mtl_create_pipelines();
 
   static void glfw_error_callback(const int code, const char *description);
   static void glfw_framebuffer_size_callback(GLFWwindow *window,
                                              const int width, const int height);
   void glfw_resize_framebuffer(const int width, const int height);
+  void glfw_create_window(const uint16_t &widht, const uint16_t &height);
+
+  void create_tlas(
+      const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
+          &render_packets);
 
 public:
   GPU_Interface(const uint16_t &width, const uint16_t &height);

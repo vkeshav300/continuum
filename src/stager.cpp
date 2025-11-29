@@ -14,12 +14,12 @@ void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
 }
 
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
-  const auto entities = registry.view<Components::Bounding_Box>();
+  const auto entities = registry.view<Components::Sphere_AABB>();
 
   for (const auto &e : entities) {
     /* Create bounding box */
     const auto &[bbox, transform] =
-        registry.get<Components::Bounding_Box, Components::Transform>(e);
+        registry.get<Components::Sphere_AABB, Components::Transform>(e);
 
     if (m_packets.find(e) !=
         m_packets.end()) { // For entities that already have associated packets

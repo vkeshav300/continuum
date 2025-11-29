@@ -2,8 +2,6 @@
 
 #include "math_utils.hpp"
 
-#include <cstdint>
-
 namespace CTNM::Components {
 
 struct Transform {
@@ -12,11 +10,8 @@ struct Transform {
   vec_f4 rtn; // Rotation
 };
 
-enum Bounding_Box_Style : uint8_t { Sphere = 0 };
-
-struct Bounding_Box {
-  float d;
-  uint8_t style;
+struct Sphere_AABB {
+  float r;
 };
 
 struct Camera {
