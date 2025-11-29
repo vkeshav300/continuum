@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../dtypes/components.h"
+#include "../components.hpp"
 #include "gpu_context.hpp"
-#include "utils.hpp"
+#include "mtl_ptr.hpp"
 
 #include <entt/entt.hpp>
 
@@ -10,9 +10,6 @@
 
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>
-
-static inline bool approx_eq(const float a, const float b,
-                             const float eps = 1e-4f);
 
 static inline MTL::AxisAlignedBoundingBox
 to_mtl_aabb(const CTNM::Components::Bounding_Box &bbox);
@@ -25,6 +22,8 @@ namespace CTNM::RHI {
 class Render_Packet {
 public:
   virtual ~Render_Packet() = 0;
+
+  const virtual MTL_Ptr<MTL::AccelerationStructure> &get_as() const = 0;
 
   virtual void smart_update(const GPU_Context &context,
                             const CTNM::Components::Bounding_Box &bbox,
@@ -57,6 +56,8 @@ public:
                      const CTNM::Components::Bounding_Box &bbox,
                      const CTNM::Components::Transform &transform);
   ~Render_Packet_AABB();
+
+  const MTL_Ptr<MTL::AccelerationStructure> &get_as() const override;
 
   void smart_update(const GPU_Context &context,
                     const CTNM::Components::Bounding_Box &bbox,

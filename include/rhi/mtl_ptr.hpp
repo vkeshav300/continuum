@@ -74,7 +74,8 @@ public:
     }
 
     if constexpr (std::is_same_v<T, MTL::AccelerationStructureCommandEncoder> ||
-                  std::is_same_v<T, MTL::ComputeCommandEncoder>) {
+                  std::is_same_v<T, MTL::ComputeCommandEncoder> ||
+                  std::is_same_v<T, MTL::RenderCommandEncoder>) {
       if (!m_mark) {
         m_ptr->endEncoding();
         m_mark = true;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vectors.h"
+#include "math_utils.hpp"
 
 #include <cstdint>
 
@@ -17,6 +17,11 @@ enum Bounding_Box_Style : uint8_t { Sphere = 0 };
 struct Bounding_Box {
   float d;
   uint8_t style;
+};
+
+struct Camera {
+  vec_f3 pos;
+  vec_f3 fpos; // Point to focus camera at
 };
 
 } // namespace CTNM::Components

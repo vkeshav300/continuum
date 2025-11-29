@@ -1,8 +1,10 @@
 #include "rhi/gpu_interface.hpp"
+#include "math_utils.hpp"
 #include "rhi/bridges.hpp"
 #include "rhi/gpu_context.hpp"
+#include "rhi/gpu_types.hpp"
+#include "rhi/mtl_ptr.hpp"
 #include "rhi/render_packet.hpp"
-#include "rhi/utils.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -71,12 +73,14 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
   m_ns_window = Bridges::get_ns_window(m_window, m_layer.get());
 
   /* Load metal shaders */
-  // m_lib = m_device->newDefaultLibrary();
-  // if (!m_lib)
-  // throw std::runtime_error("Failed to load default library");
-  //
-  // m_lib_fn_raytracer = m_lib->newFunction(
-  // NS::String::string("raytracer", NS::UTF8StringEncoding));
+  m_lib = m_device->newDefaultLibrary();
+  if (!m_lib.get())
+    throw std::runtime_error("Failed to load default library");
+
+  m_cam_buff = m_device->newBuffer(sizeof(GPU_Types::Camera),
+                                   MTL::ResourceStorageModeShared);
+  m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
+                                       MTL::ResourceStorageModeShared);
 
   m_cmd_queue = m_device->newCommandQueue();
 }
@@ -115,6 +119,10 @@ void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
   if (m_layer.get()) {
     m_layer->setDrawableSize(CGSizeMake(width, height));
     next_drawable();
+
+    m_img_out_buff.smart_release();
+    m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
+                                         MTL::ResourceStorageModeShared);
   }
 }
 
@@ -139,7 +147,8 @@ void GPU_Interface::next_drawable() {
 
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
-        &render_packets) {
+        &render_packets,
+    const entt::registry &registry) {
   next_drawable();
   if (!m_drawable.get())
     return Return_Code::Skip;
@@ -147,52 +156,29 @@ uint8_t GPU_Interface::render(
   if (!m_as_cmd_enc.get() || !m_cmd_buff.get())
     cycle_gpu_context();
 
-  /* Create acceleration structure instances buffer */
-  const size_t instance_count = render_packets.size();
-  MTL::Buffer *instances_buff = m_device->newBuffer(
-      instance_count * sizeof(MTL::AccelerationStructureInstanceDescriptor),
-      MTL::ResourceStorageModeShared);
-
-  MTL::AccelerationStructureInstanceDescriptor *instances =
-      reinterpret_cast<MTL::AccelerationStructureInstanceDescriptor *>(
-          instances_buff->contents());
-
-  size_t idx = 0;
-  for (const auto &[_, packet] : render_packets) {
-    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx];
-    asi_desc.accelerationStructureIndex = idx++;
-    asi_desc.transformationMatrix = packet->get_transformations();
-    asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
-    asi_desc.mask = 0xFF;
-    asi_desc.intersectionFunctionTableOffset = 0;
-    // asi_desc.userID;
-  }
-
-  /* Create TLAS */
-  MTL::InstanceAccelerationStructureDescriptor *tlas_desc =
-      MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
-  tlas_desc->setInstanceCount(instance_count);
-  tlas_desc->setInstanceDescriptorBuffer(instances_buff);
-  tlas_desc->setInstanceDescriptorBufferOffset(0);
-
-  MTL::AccelerationStructureSizes sizes =
-      m_device->accelerationStructureSizes(tlas_desc);
-  MTL::Buffer *scratch_buff = m_device->newBuffer(
-      sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
-
-  MTL::AccelerationStructure *tlas =
-      m_device->newAccelerationStructure(sizes.accelerationStructureSize);
-  m_as_cmd_enc->buildAccelerationStructure(tlas, tlas_desc, scratch_buff, 0);
-
-  tlas_desc->release();
   m_as_cmd_enc->endEncoding();
   m_as_cmd_enc.set_mark(true);
+
+  /* Gather camera data */
+  const CTNM::Components::Camera &cam = registry.get<CTNM::Components::Camera>(
+      registry.view<CTNM::Components::Camera>()
+          .front()); // First object with camera component is camera
+
+  GPU_Types::Camera gpu_cam;
+  gpu_cam.pos = cam.pos;
+  gpu_cam.dir = cam.fpos - cam.pos;
+  gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0) ? vec_f3{0.0f, 0.0f, 0.0f}
+                                                     : normalize(gpu_cam.dir);
+  std::memcpy(m_cam_buff->contents(), &gpu_cam, sizeof(gpu_cam));
 
   /* Cycle to compute encoder */
   m_comp_cmd_enc.smart_release();
   m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder();
   // m_comp_cmd_enc->setComputePipelineState(m_rt_ps);
-  m_comp_cmd_enc->setAccelerationStructure(tlas, 0);
+  m_comp_cmd_enc->setAccelerationStructure(
+      render_packets.begin()->second->get_as().get(), 0);
+  m_comp_cmd_enc->setBuffer(m_cam_buff.get(), 0, 1);
+  m_comp_cmd_enc->setBuffer(m_img_out_buff.get(), 0, 2);
   // m_comp_cmd_enc->dispatchThreads(...) figure this out to run raytracer
 
   m_comp_cmd_enc->endEncoding();

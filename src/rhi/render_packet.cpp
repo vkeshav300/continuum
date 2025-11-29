@@ -1,15 +1,11 @@
 #include "rhi/render_packet.hpp"
-#include "dtypes/components.h"
+#include "components.hpp"
+#include "math_utils.hpp"
 #include "rhi/gpu_context.hpp"
-#include "rhi/utils.hpp"
+#include "rhi/mtl_ptr.hpp"
 
 #include <cmath>
 #include <cstring>
-
-/* Allow for small variations in values */
-static inline bool approx_eq(const float a, const float b, const float eps) {
-  return std::fabs(a - b) < eps;
-}
 
 #ifdef __APPLE__
 
@@ -40,9 +36,8 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
    * */
   vector_float3 axis =
       vector_float3{transform.rtn.x, transform.rtn.y, transform.rtn.z};
-  axis = approx_eq(simd::length(axis), 0, 1e-6f)
-             ? vector_float3{0.0f, 0.0f, 0.0f}
-             : simd::normalize(axis);
+  axis = approx_eq(simd::length(axis), 0) ? vector_float3{0.0f, 0.0f, 0.0f}
+                                          : simd::normalize(axis);
   const float half = 0.5 * transform.rtn.w, qw = std::cosf(half);
   const vector_float3 qv = axis * std::sinf(half);
 
@@ -99,6 +94,10 @@ Render_Packet_AABB::Render_Packet_AABB(
 }
 
 Render_Packet_AABB::~Render_Packet_AABB() {}
+
+const MTL_Ptr<MTL::AccelerationStructure> &Render_Packet_AABB::get_as() const {
+  return m_blas;
+}
 
 void Render_Packet_AABB::create_blas_desc(
     const CTNM::Components::Bounding_Box &bbox) {

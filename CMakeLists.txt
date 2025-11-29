@@ -68,3 +68,33 @@ target_link_libraries(
 	"-framework MetalKit"
 	objc
 )
+
+# Build metal shaders into .metallib
+file(GLOB METAL_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/metal/*.metal")
+set(AIR_FILES "")
+
+foreach(SHADER ${METAL_SHADERS})
+    get_filename_component(NAME ${SHADER} NAME_WE)
+    set(AIR_FILE "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.air")
+    add_custom_command(
+        OUTPUT ${AIR_FILE}
+        COMMAND xcrun -sdk macosx metal -std=metal3.1 -c ${SHADER} -o ${AIR_FILE}
+        DEPENDS ${SHADER}
+        COMMENT "Building MTL object ${AIR_FILE}" # Make it look cool :)
+        VERBATIM
+    )
+    list(APPEND AIR_FILES ${AIR_FILE})
+endforeach()
+
+set(METALLIB "${CMAKE_CURRENT_BINARY_DIR}/default.metallib")
+add_custom_command(
+    OUTPUT ${METALLIB}
+    COMMAND xcrun -sdk macosx metallib ${AIR_FILES} -o ${METALLIB}
+    DEPENDS ${AIR_FILES}
+    COMMENT "Linking MTL library ${METALLIB}"
+    VERBATIM
+)
+
+add_custom_target(metallib ALL
+    DEPENDS ${METALLIB}
+)

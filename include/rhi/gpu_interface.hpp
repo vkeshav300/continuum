@@ -1,7 +1,7 @@
 #pragma once
 #include "gpu_context.hpp"
+#include "mtl_ptr.hpp"
 #include "render_packet.hpp"
-#include "utils.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -42,13 +42,14 @@ private:
   MTL_Ptr<MTL::Device> m_device = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
-  MTL_Ptr<MTL::Function> m_lib_fn_rt = nullptr;
-  MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr;
+  MTL_Ptr<MTL::Function> m_raytracer_fn = nullptr;
+  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
 
   MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
   MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_as_cmd_enc = nullptr;
   MTL_Ptr<MTL::ComputeCommandEncoder> m_comp_cmd_enc = nullptr;
+  MTL_Ptr<MTL::Buffer> m_cam_buff = nullptr, m_img_out_buff = nullptr;
 
   static void glfw_error_callback(const int code, const char *description);
   static void glfw_framebuffer_size_callback(GLFWwindow *window,
@@ -66,7 +67,8 @@ public:
 
   uint8_t
   render(const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
-             &render_packets);
+             &render_packets,
+         const entt::registry &registry);
 
   bool should_close() const;
   void poll_events() const;

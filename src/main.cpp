@@ -1,8 +1,8 @@
 /*
  * TEMPORARY MAIN FILE
  */
-#include "dtypes/components.h"
-#include "dtypes/vectors.h"
+#include "components.hpp"
+#include "math_utils.hpp"
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
 
@@ -32,6 +32,9 @@ int main(int argc, char *argv[]) {
       vec_f4{0.0f, 0.0f, 0.0f, 0.0f});
   registry.emplace<CTNM::Components::Bounding_Box>(
       entity, 1.0f, CTNM::Components::Bounding_Box_Style::Sphere);
+  entt::entity camera = registry.create();
+  registry.emplace<CTNM::Components::Camera>(entity, vec_f3{-5.0f, 0.0f, 0.0f},
+                                             vec_f3{0.0f, 0.0f, 0.0f});
 
   CTNM::Stager stager;
   registry.on_destroy<CTNM::Components::Bounding_Box>()
@@ -43,7 +46,7 @@ int main(int argc, char *argv[]) {
     interface.cycle_gpu_context();
     stager.stage(registry, interface.get_gpu_context());
 
-    if (interface.render(stager.get_render_packets()) ==
+    if (interface.render(stager.get_render_packets(), registry) ==
         CTNM::RHI::Return_Code::Skip)
       continue;
 
