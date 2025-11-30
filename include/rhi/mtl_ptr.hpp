@@ -27,7 +27,7 @@ public:
   const T *operator->() const { return m_ptr; }
 
   /* Copy */
-  MTL_Ptr(const MTL_Ptr &other) {
+  MTL_Ptr(const MTL_Ptr &other) : m_ptr(other.m_ptr), m_mark(other.m_mark) {
     if (m_ptr)
       m_ptr->retain();
   }
@@ -37,6 +37,7 @@ public:
       smart_release();
 
       m_ptr = other.m_ptr;
+      m_mark = other.m_mark;
       if (m_ptr)
         m_ptr->retain();
     }
@@ -45,12 +46,19 @@ public:
   }
 
   /* Move */
-  MTL_Ptr(MTL_Ptr &&other) noexcept : m_ptr(other.m_ptr) {
+  MTL_Ptr(MTL_Ptr &&other) noexcept : m_ptr(other.m_ptr), m_mark(other.m_mark) {
     other.set_nullptr();
+    other.m_mark = false;
   }
 
   MTL_Ptr &operator=(MTL_Ptr &&other) noexcept {
-    m_ptr = std::exchange(other.m_ptr, nullptr);
+    if (this != &other) {
+      smart_release();
+
+      m_ptr = std::exchange(other.m_ptr, nullptr);
+      m_mark = other.m_mark;
+      other.m_mark = false;
+    }
 
     return *this;
   }
