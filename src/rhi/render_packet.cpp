@@ -92,6 +92,7 @@ const NS::UInteger Render_Packet_AABB::get_ifn_idx() const { return m_ifn_idx; }
 void Render_Packet_AABB::create_blas_desc(
     const CTNM::Components::Sphere_AABB &bbox) {
   m_blas_desc.smart_release();
+  MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
   /* Create geometry descriptor */
   m_aabb = to_mtl_aabb(bbox);
@@ -106,14 +107,14 @@ void Render_Packet_AABB::create_blas_desc(
 
   MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {
       geom_desc.get()};
-  MTL_Ptr<NS::Array> geom_array = NS::Array::array(
+  NS::Array *geom_array = NS::Array::array(
       reinterpret_cast<NS::Object **>(geom_descs),
       1); // m_blas_desc->setGeometryDescriptors requires NS::Array which can
           // only be composed of NS::Objects, so reinterpret cast is used
 
   /* Create acceleration structure descriptor */
   m_blas_desc = MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-  m_blas_desc->setGeometryDescriptors(geom_array.get());
+  m_blas_desc->setGeometryDescriptors(geom_array);
   m_blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
 }
 
@@ -135,12 +136,15 @@ bool Render_Packet_AABB::needs_refit(
 void Render_Packet_AABB::refit(const GPU_Context &context,
                                const CTNM::Components::Sphere_AABB &bbox) {
   create_blas_desc(bbox);
-  MTL_Ptr<MTL::AccelerationStructure> blas_new = nullptr;
+  MTL_Ptr<MTL::AccelerationStructure> blas_new =
+      context.device->newAccelerationStructure(m_blas_desc.get());
   context.as_cmd_enc->refitAccelerationStructure(
       m_blas.get(), m_blas_desc.get(), blas_new.get(), m_scratch_buff.get(), 0);
 
-  m_blas->release();
-  m_blas = blas_new;
+  if (blas_new.get()) {
+    m_blas->release();
+    m_blas = blas_new;
+  }
 }
 
 void Render_Packet_AABB::smart_update(

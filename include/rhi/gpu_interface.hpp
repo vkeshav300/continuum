@@ -37,6 +37,7 @@ private:
   int m_fb_width, m_fb_height;
 
   /* Metal */
+  MTL_Ptr<NS::AutoreleasePool> m_pool_full = nullptr;
   MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
   MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
@@ -51,8 +52,8 @@ private:
   MTL_Ptr<MTL::Library> m_lib = nullptr;
   MTL_Ptr<MTL::Function> m_raytracing_fn = nullptr;
   MTL_Ptr<MTL::Function> m_sphere_if = nullptr;
+  MTL_Ptr<MTL::FunctionHandle> m_sphere_ifh = nullptr;
   MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
-
   MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
 
   void mtl_load();

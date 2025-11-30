@@ -14,7 +14,8 @@ void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
 }
 
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
-  const auto entities = registry.view<Components::Sphere_AABB>();
+  const auto entities =
+      registry.view<Components::Sphere_AABB, Components::Transform>();
 
   for (const auto &e : entities) {
     /* Create bounding box */

@@ -27,8 +27,9 @@
 namespace CTNM::RHI {
 
 GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
-    : m_device(MTL::CreateSystemDefaultDevice()),
-      m_layer(CA::MetalLayer::layer()) {
+    : m_pool_full(NS::AutoreleasePool::alloc()->init()),
+      m_device(MTL::CreateSystemDefaultDevice()),
+      m_layer(CA::MetalLayer::layer()->retain()) {
   glfw_create_window(width, height);
   mtl_load();
   mtl_create_buffs();
@@ -37,8 +38,8 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
 
 void GPU_Interface::glfw_error_callback(const int code,
                                         const char *description) {
-  throw std::runtime_error("[Error]\t(GLFW " + std::to_string(code) + ") " +
-                           std::string(description));
+  throw std::runtime_error("GLFW error (" + std::to_string(code) +
+                           "): " + std::string(description));
 }
 
 void GPU_Interface::glfw_framebuffer_size_callback(GLFWwindow *window,
@@ -128,9 +129,8 @@ void GPU_Interface::mtl_create_pipelines() {
       MTL::LinkedFunctions::alloc()->init();
   constexpr NS::UInteger linked_if_count = 1;
   NS::Object *linked_ifs[linked_if_count]{m_sphere_if.get()};
-  MTL_Ptr<NS::Array> linked_if_array =
-      NS::Array::array(linked_ifs, linked_if_count);
-  linked_fns->setFunctions(linked_if_array.get());
+  NS::Array *linked_if_array = NS::Array::array(linked_ifs, linked_if_count);
+  linked_fns->setFunctions(linked_if_array);
   m_raytracing_ps_desc->setLinkedFunctions(linked_fns.get());
 
   NS::Error *err = nullptr;
@@ -149,13 +149,13 @@ void GPU_Interface::mtl_create_pipelines() {
   if (!m_ift.get())
     throw std::runtime_error("Failed to allocate intersection function table");
 
-  MTL_Ptr<MTL::FunctionHandle> sphere_ifh =
-      m_raytracing_ps->functionHandle(m_sphere_if.get())->retain();
-  if (!sphere_ifh.get())
+  m_sphere_ifh = m_raytracing_ps->functionHandle(m_sphere_if.get());
+  if (!m_sphere_ifh.get())
     throw std::runtime_error(
         "Failed to create function handle for sphere_intersection");
 
-  m_ift->setFunction(sphere_ifh.get(), IFN_IDX::Sphere);
+  m_sphere_ifh->retain();
+  m_ift->setFunction(m_sphere_ifh.get(), IFN_IDX::Sphere);
 }
 
 GPU_Interface::~GPU_Interface() {
@@ -174,20 +174,24 @@ void GPU_Interface::cycle_gpu_context() {
 
   m_cmd_buff.set_mark(false);
   m_as_cmd_enc.set_mark(false);
-  m_cmd_buff = m_cmd_queue->commandBuffer();
-  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder();
+  m_cmd_buff = m_cmd_queue->commandBuffer()->retain();
+  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder()->retain();
 }
 
 GPU_Context GPU_Interface::get_gpu_context() const {
   return {m_device.get(), m_as_cmd_enc.get()};
 }
 
-void GPU_Interface::next_drawable() { m_drawable = m_layer->nextDrawable(); }
+void GPU_Interface::next_drawable() {
+  m_drawable = m_layer->nextDrawable()->retain();
+}
 
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets,
     const entt::registry &registry) {
+  MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
+
   next_drawable();
   if (!m_drawable.get())
     return Return_Code::Skip;
@@ -217,7 +221,7 @@ uint8_t GPU_Interface::render(
 
   /* Cycle to compute encoder */
   m_comp_cmd_enc.smart_release();
-  m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder();
+  m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder()->retain();
   m_comp_cmd_enc->setComputePipelineState(m_raytracing_ps.get());
   if (m_ift.get())
     m_comp_cmd_enc->setIntersectionFunctionTable(m_ift.get(), 0);
@@ -280,10 +284,10 @@ void GPU_Interface::create_tlas(
   tlas_desc->setInstanceCount(idx);
   tlas_desc->setUsage(MTL::AccelerationStructureUsageNone);
   if (!blas_handles.empty()) {
-    MTL_Ptr<NS::Array> blas_array =
+    NS::Array *blas_array =
         NS::Array::array(reinterpret_cast<NS::Object **>(blas_handles.data()),
                          blas_handles.size());
-    tlas_desc->setInstancedAccelerationStructures(blas_array.get());
+    tlas_desc->setInstancedAccelerationStructures(blas_array);
   }
 
   MTL::AccelerationStructureSizes sizes =

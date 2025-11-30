@@ -6,8 +6,6 @@
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
 
-#include <iostream>
-
 #include <entt/entt.hpp>
 
 static void marker() {}
@@ -22,7 +20,7 @@ int main(int argc, char *argv[]) {
       vec_f4{0.0f, 0.0f, 0.0f, 0.0f});
   registry.emplace<CTNM::Components::Sphere_AABB>(entity, 1.0f);
   entt::entity camera = registry.create();
-  registry.emplace<CTNM::Components::Camera>(entity, vec_f3{-5.0f, 0.0f, 0.0f},
+  registry.emplace<CTNM::Components::Camera>(camera, vec_f3{-5.0f, 0.0f, 0.0f},
                                              vec_f3{0.0f, 0.0f, 0.0f});
 
   CTNM::Stager stager;
