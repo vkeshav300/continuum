@@ -61,6 +61,7 @@ Render_Packet_AABB::Render_Packet_AABB(
   /* Create bounding box buffer */
   m_aabb_buff = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
                                           MTL::ResourceStorageModeShared);
+  m_ifn_idx = IFN_IDX::Sphere;
 
   /* Create build scratch buffer */
   create_blas_desc(bbox);
@@ -86,6 +87,8 @@ const MTL_Ptr<MTL::AccelerationStructure> &Render_Packet_AABB::get_as() const {
   return m_blas;
 }
 
+const NS::UInteger Render_Packet_AABB::get_ifn_idx() const { return m_ifn_idx; }
+
 void Render_Packet_AABB::create_blas_desc(
     const CTNM::Components::Sphere_AABB &bbox) {
   m_blas_desc.smart_release();
@@ -109,8 +112,7 @@ void Render_Packet_AABB::create_blas_desc(
           // only be composed of NS::Objects, so reinterpret cast is used
 
   /* Create acceleration structure descriptor */
-  MTL::PrimitiveAccelerationStructureDescriptor *m_blas_desc =
-      MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
+  m_blas_desc = MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
   m_blas_desc->setGeometryDescriptors(geom_array.get());
   m_blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
 }

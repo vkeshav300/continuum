@@ -8,6 +8,7 @@
 
 #ifdef __APPLE__
 
+#include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>
 
@@ -19,11 +20,14 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform);
 
 namespace CTNM::RHI {
 
+enum IFN_IDX : NS::UInteger { Sphere = 0 };
+
 class Render_Packet {
 public:
   virtual ~Render_Packet() = 0;
 
   const virtual MTL_Ptr<MTL::AccelerationStructure> &get_as() const = 0;
+  const virtual NS::UInteger get_ifn_idx() const = 0;
 
   virtual void smart_update(const GPU_Context &context,
                             const CTNM::Components::Sphere_AABB &bbox,
@@ -47,6 +51,7 @@ private:
   MTL_Ptr<MTL::Buffer> m_scratch_buff = nullptr;
 
   MTL::PackedFloat4x3 m_transformations;
+  NS::UInteger m_ifn_idx;
 
   void create_blas_desc(const CTNM::Components::Sphere_AABB &bbox);
 
@@ -57,6 +62,7 @@ public:
   ~Render_Packet_AABB();
 
   const MTL_Ptr<MTL::AccelerationStructure> &get_as() const override;
+  const NS::UInteger get_ifn_idx() const override;
 
   void smart_update(const GPU_Context &context,
                     const CTNM::Components::Sphere_AABB &bbox,

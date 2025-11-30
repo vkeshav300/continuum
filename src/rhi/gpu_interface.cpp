@@ -53,7 +53,6 @@ void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
     m_layer->setDrawableSize(CGSizeMake(width, height));
     next_drawable();
 
-    m_img_out_buff.smart_release();
     m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
                                          MTL::ResourceStorageModeShared);
   }
@@ -108,17 +107,11 @@ void GPU_Interface::mtl_create_buffs() {
 }
 
 void GPU_Interface::mtl_create_pipelines() {
+  /* Load functions */
   m_raytracing_fn = m_lib->newFunction(NS::String::string(
       "k_raytracer", NS::StringEncoding::UTF8StringEncoding));
   if (!m_raytracing_fn.get())
     throw std::runtime_error("Failed to find k_raytracer in default library");
-
-  NS::Error *error = nullptr;
-  m_raytracing_ps =
-      m_device->newComputePipelineState(m_raytracing_fn.get(), &error);
-  if (!m_raytracing_ps.get())
-    throw std::runtime_error(
-        "Failed to create raytracing compute pipeline state");
 
   m_sphere_if = m_lib->newFunction(NS::String::string(
       "sphere_intersection", NS::StringEncoding::UTF8StringEncoding));
@@ -126,20 +119,43 @@ void GPU_Interface::mtl_create_pipelines() {
     throw std::runtime_error(
         "Failed to find sphere_intersection function in default library");
 
-  m_sphere_if_handle = m_raytracing_ps->functionHandle(m_sphere_if.get());
-  if (!m_sphere_if_handle.get())
-    throw std::runtime_error(
-        "Failed to create function handle for sphere_intersection");
+  /* Create raytracing pipeline state */
+  MTL_Ptr<MTL::ComputePipelineDescriptor> m_raytracing_ps_desc =
+      MTL::ComputePipelineDescriptor::alloc()->init();
+  m_raytracing_ps_desc->setComputeFunction(m_raytracing_fn.get());
 
+  MTL_Ptr<MTL::LinkedFunctions> linked_fns =
+      MTL::LinkedFunctions::alloc()->init();
+  constexpr NS::UInteger linked_if_count = 1;
+  NS::Object *linked_ifs[linked_if_count]{m_sphere_if.get()};
+  MTL_Ptr<NS::Array> linked_if_array =
+      NS::Array::array(linked_ifs, linked_if_count);
+  linked_fns->setFunctions(linked_if_array.get());
+  m_raytracing_ps_desc->setLinkedFunctions(linked_fns.get());
+
+  NS::Error *err = nullptr;
+  m_raytracing_ps = m_device->newComputePipelineState(
+      m_raytracing_ps_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
+  if (!m_raytracing_ps.get())
+    throw std::runtime_error(
+        "Failed to create raytracing compute pipeline state");
+
+  /* Create intersection function table (ift) */
   MTL_Ptr<MTL::IntersectionFunctionTableDescriptor> ift_desc =
       MTL::IntersectionFunctionTableDescriptor::alloc()->init();
   ift_desc->setFunctionCount(1);
 
   m_ift = m_raytracing_ps->newIntersectionFunctionTable(ift_desc.get());
   if (!m_ift.get())
-    throw std::runtime_error("Failed to create intersection function table");
+    throw std::runtime_error("Failed to allocate intersection function table");
 
-  m_ift->setFunction(m_sphere_if_handle.get(), 0);
+  MTL_Ptr<MTL::FunctionHandle> sphere_ifh =
+      m_raytracing_ps->functionHandle(m_sphere_if.get())->retain();
+  if (!sphere_ifh.get())
+    throw std::runtime_error(
+        "Failed to create function handle for sphere_intersection");
+
+  m_ift->setFunction(sphere_ifh.get(), IFN_IDX::Sphere);
 }
 
 GPU_Interface::~GPU_Interface() {
@@ -166,10 +182,7 @@ GPU_Context GPU_Interface::get_gpu_context() const {
   return {m_device.get(), m_as_cmd_enc.get()};
 }
 
-void GPU_Interface::next_drawable() {
-  m_drawable.smart_release();
-  m_drawable = m_layer->nextDrawable();
-}
+void GPU_Interface::next_drawable() { m_drawable = m_layer->nextDrawable(); }
 
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
@@ -255,7 +268,7 @@ void GPU_Interface::create_tlas(
     asi_desc.transformationMatrix = packet->get_transformations();
     asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
     asi_desc.mask = 0xFF;
-    asi_desc.intersectionFunctionTableOffset = 0;
+    asi_desc.intersectionFunctionTableOffset = IFN_IDX::Sphere;
   }
 
   /* Create TLAS */

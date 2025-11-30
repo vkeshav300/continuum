@@ -36,26 +36,24 @@ private:
   NS::Window *m_ns_window = nullptr;
   int m_fb_width, m_fb_height;
 
-  /* Metal rendering */
+  /* Metal */
   MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
   MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
   MTL_Ptr<MTL::Device> m_device = nullptr;
   MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
-
-  MTL_Ptr<MTL::Library> m_lib = nullptr;
-  MTL_Ptr<MTL::Function> m_raytracing_fn = nullptr;
-  MTL_Ptr<MTL::Function> m_sphere_if = nullptr;
-  MTL_Ptr<MTL::FunctionHandle> m_sphere_if_handle = nullptr;
-
-  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
-  MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
-
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
   MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_as_cmd_enc = nullptr;
   MTL_Ptr<MTL::ComputeCommandEncoder> m_comp_cmd_enc = nullptr;
   MTL_Ptr<MTL::Buffer> m_cam_buff = nullptr, m_img_out_buff = nullptr;
   MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
+
+  MTL_Ptr<MTL::Library> m_lib = nullptr;
+  MTL_Ptr<MTL::Function> m_raytracing_fn = nullptr;
+  MTL_Ptr<MTL::Function> m_sphere_if = nullptr;
+  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
+
+  MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
 
   void mtl_load();
   void mtl_create_buffs();

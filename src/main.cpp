@@ -10,8 +10,10 @@
 
 #include <entt/entt.hpp>
 
+static void marker() {}
+
 int main(int argc, char *argv[]) {
-  std::cout << "Continuum v0.0.0\n";
+  CTNM::RHI::GPU_Interface interface(800, 600);
 
   entt::registry registry;
   entt::entity entity = registry.create();
@@ -27,8 +29,6 @@ int main(int argc, char *argv[]) {
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
       .connect<&CTNM::Stager::callback_bbox_destroyed>(stager);
 
-  CTNM::RHI::GPU_Interface interface(800, 600);
-
   while (!interface.should_close()) {
     interface.cycle_gpu_context();
     stager.stage(registry, interface.get_gpu_context());
@@ -43,6 +43,8 @@ int main(int argc, char *argv[]) {
   /* Prevent calling callback which might not exist */
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
       .disconnect<&CTNM::Stager::callback_bbox_destroyed>(stager);
+
+  marker();
 
   return 0;
 }
