@@ -108,6 +108,8 @@ void GPU_Interface::mtl_create_buffs() {
 }
 
 void GPU_Interface::mtl_create_pipelines() {
+  MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
+
   /* Load functions */
   m_raytracing_fn = m_lib->newFunction(NS::String::string(
       "k_raytracer", NS::StringEncoding::UTF8StringEncoding));
@@ -179,7 +181,7 @@ void GPU_Interface::cycle_gpu_context() {
 }
 
 GPU_Context GPU_Interface::get_gpu_context() const {
-  return {m_device.get(), m_as_cmd_enc.get()};
+  return {m_device.get(), m_cmd_buff.get(), m_as_cmd_enc.get()};
 }
 
 void GPU_Interface::next_drawable() {

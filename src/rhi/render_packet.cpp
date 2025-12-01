@@ -5,6 +5,7 @@
 #include "rhi/mtl_ptr.hpp"
 
 #include <cstring>
+#include <utility>
 
 #ifdef __APPLE__
 
@@ -141,10 +142,8 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
   context.as_cmd_enc->refitAccelerationStructure(
       m_blas.get(), m_blas_desc.get(), blas_new.get(), m_scratch_buff.get(), 0);
 
-  if (blas_new.get()) {
-    m_blas->release();
-    m_blas = blas_new;
-  }
+  if (blas_new.get())
+    m_blas = std::move(blas_new);
 }
 
 void Render_Packet_AABB::smart_update(

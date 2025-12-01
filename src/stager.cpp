@@ -3,15 +3,13 @@
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
+#include <mutex>
+
 #include <entt/entt.hpp>
 
 namespace CTNM {
 
 Stager::~Stager() {}
-
-void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
-  m_packets.erase(e);
-}
 
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
@@ -30,11 +28,24 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
           std::make_unique<RHI::Render_Packet_AABB>(context, bbox, transform);
     }
   }
+
+  /* Ensure cleanup of decomission packets syncs with GPU */
+  context.cmd_buff->addCompletedHandler([this](MTL::CommandBuffer *cmd) {
+    std::lock_guard<std::mutex> lock(m_mtx_cleanup);
+    for (auto packet : m_decomissioned_packets)
+      m_packets.erase(packet);
+
+    m_decomissioned_packets.clear();
+  });
 }
 
 const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
 Stager::get_render_packets() const {
   return m_packets;
+}
+
+void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
+  m_decomissioned_packets.push_back(e);
 }
 
 } // namespace CTNM

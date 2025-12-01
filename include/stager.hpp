@@ -4,7 +4,9 @@
 #include "rhi/render_packet.hpp"
 
 #include <memory>
+#include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <entt/entt.hpp>
 
@@ -14,6 +16,8 @@ class Stager {
 private:
   std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>
       m_packets;
+  std::vector<entt::entity> m_decomissioned_packets;
+  std::mutex m_mtx_cleanup;
 
 public:
   Stager() = default;

@@ -35,6 +35,8 @@ int main(int argc, char *argv[]) {
         CTNM::RHI::Return_Code::Skip)
       continue;
 
+    stager.clean();
+
     interface.poll_events();
   }
 
