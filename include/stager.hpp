@@ -16,7 +16,7 @@ class Stager {
 private:
   std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>
       m_packets;
-  std::vector<entt::entity> m_decomissioned_packets;
+  std::vector<entt::entity> m_packets_decomissioned;
   std::mutex m_mtx_cleanup;
 
 public:

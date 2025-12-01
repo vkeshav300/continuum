@@ -33,27 +33,29 @@ class GPU_Interface {
 private:
   /* Window interface */
   GLFWwindow *m_window = nullptr;
-  NS::Window *m_ns_window = nullptr;
-  int m_fb_width, m_fb_height;
+  NS::Window *m_window_ns = nullptr;
+  int m_fb_width, m_fb_height; // Framebuffer width, height
 
   /* Metal */
-  MTL_Ptr<NS::AutoreleasePool> m_pool_full = nullptr;
+  MTL_Ptr<NS::AutoreleasePool> m_pool_full =
+      nullptr; // Full-scope autorelease pool
   MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
   MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
   MTL_Ptr<MTL::Device> m_device = nullptr;
   MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
-  MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_as_cmd_enc = nullptr;
-  MTL_Ptr<MTL::ComputeCommandEncoder> m_comp_cmd_enc = nullptr;
-  MTL_Ptr<MTL::Buffer> m_cam_buff = nullptr, m_img_out_buff = nullptr;
+  MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_ce_as = nullptr;
+  MTL_Ptr<MTL::ComputeCommandEncoder> m_ce_comp = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_cam = nullptr;
   MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
-  MTL_Ptr<MTL::Function> m_raytracing_fn = nullptr;
-  MTL_Ptr<MTL::Function> m_sphere_if = nullptr;
-  MTL_Ptr<MTL::FunctionHandle> m_sphere_ifh = nullptr;
-  MTL_Ptr<MTL::ComputePipelineState> m_raytracing_ps = nullptr;
+  MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function
+  MTL_Ptr<MTL::Function> m_fn_i_sphere =
+      nullptr; // Sphere intersection function
+  MTL_Ptr<MTL::FunctionHandle> m_fnh_i_sphere = nullptr;
+  MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr; // Raytracing pipeline
   MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
 
   void mtl_load();

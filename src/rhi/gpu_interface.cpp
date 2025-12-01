@@ -53,9 +53,6 @@ void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
   if (m_layer.get()) {
     m_layer->setDrawableSize(CGSizeMake(width, height));
     next_drawable();
-
-    m_img_out_buff = m_device->newBuffer(width * height * sizeof(vector_float4),
-                                         MTL::ResourceStorageModeShared);
   }
 }
 
@@ -88,7 +85,7 @@ void GPU_Interface::glfw_create_window(const uint16_t &width,
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
   m_layer->setDrawableSize(CGSizeMake(m_fb_width, m_fb_height));
 
-  m_ns_window = Bridges::get_ns_window(m_window, m_layer.get());
+  m_window_ns = Bridges::get_ns_window(m_window, m_layer.get());
 }
 
 void GPU_Interface::mtl_load() {
@@ -100,45 +97,42 @@ void GPU_Interface::mtl_load() {
 }
 
 void GPU_Interface::mtl_create_buffs() {
-  m_cam_buff = m_device->newBuffer(sizeof(GPU_Types::Camera),
+  m_buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                    MTL::ResourceStorageModeShared);
-  m_img_out_buff =
-      m_device->newBuffer(m_fb_width * m_fb_height * sizeof(vector_float4),
-                          MTL::ResourceStorageModeShared);
 }
 
 void GPU_Interface::mtl_create_pipelines() {
   MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
   /* Load functions */
-  m_raytracing_fn = m_lib->newFunction(NS::String::string(
+  m_fn_k_rt = m_lib->newFunction(NS::String::string(
       "k_raytracer", NS::StringEncoding::UTF8StringEncoding));
-  if (!m_raytracing_fn.get())
+  if (!m_fn_k_rt.get())
     throw std::runtime_error("Failed to find k_raytracer in default library");
 
-  m_sphere_if = m_lib->newFunction(NS::String::string(
+  m_fn_i_sphere = m_lib->newFunction(NS::String::string(
       "sphere_intersection", NS::StringEncoding::UTF8StringEncoding));
-  if (!m_sphere_if.get())
+  if (!m_fn_i_sphere.get())
     throw std::runtime_error(
         "Failed to find sphere_intersection function in default library");
 
   /* Create raytracing pipeline state */
   MTL_Ptr<MTL::ComputePipelineDescriptor> m_raytracing_ps_desc =
       MTL::ComputePipelineDescriptor::alloc()->init();
-  m_raytracing_ps_desc->setComputeFunction(m_raytracing_fn.get());
+  m_raytracing_ps_desc->setComputeFunction(m_fn_k_rt.get());
 
   MTL_Ptr<MTL::LinkedFunctions> linked_fns =
       MTL::LinkedFunctions::alloc()->init();
   constexpr NS::UInteger linked_if_count = 1;
-  NS::Object *linked_ifs[linked_if_count]{m_sphere_if.get()};
+  NS::Object *linked_ifs[linked_if_count]{m_fn_i_sphere.get()};
   NS::Array *linked_if_array = NS::Array::array(linked_ifs, linked_if_count);
   linked_fns->setFunctions(linked_if_array);
   m_raytracing_ps_desc->setLinkedFunctions(linked_fns.get());
 
   NS::Error *err = nullptr;
-  m_raytracing_ps = m_device->newComputePipelineState(
+  m_ps_rt = m_device->newComputePipelineState(
       m_raytracing_ps_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
-  if (!m_raytracing_ps.get())
+  if (!m_ps_rt.get())
     throw std::runtime_error(
         "Failed to create raytracing compute pipeline state");
 
@@ -147,41 +141,41 @@ void GPU_Interface::mtl_create_pipelines() {
       MTL::IntersectionFunctionTableDescriptor::alloc()->init();
   ift_desc->setFunctionCount(1);
 
-  m_ift = m_raytracing_ps->newIntersectionFunctionTable(ift_desc.get());
+  m_ift = m_ps_rt->newIntersectionFunctionTable(ift_desc.get());
   if (!m_ift.get())
     throw std::runtime_error("Failed to allocate intersection function table");
 
-  m_sphere_ifh = m_raytracing_ps->functionHandle(m_sphere_if.get());
-  if (!m_sphere_ifh.get())
+  m_fnh_i_sphere = m_ps_rt->functionHandle(m_fn_i_sphere.get());
+  if (!m_fnh_i_sphere.get())
     throw std::runtime_error(
         "Failed to create function handle for sphere_intersection");
 
-  m_sphere_ifh->retain();
-  m_ift->setFunction(m_sphere_ifh.get(), IFN_IDX::Sphere);
+  m_fnh_i_sphere->retain();
+  m_ift->setFunction(m_fnh_i_sphere.get(), IFN_IDX::Sphere);
 }
 
 GPU_Interface::~GPU_Interface() {
   if (m_window) {
     glfwDestroyWindow(m_window);
     m_window = nullptr;
-    m_ns_window = nullptr;
+    m_window_ns = nullptr;
   }
 
   glfwTerminate();
 }
 
 void GPU_Interface::cycle_gpu_context() {
-  m_as_cmd_enc.smart_release();
+  m_ce_as.smart_release();
   m_cmd_buff.smart_release();
 
   m_cmd_buff.set_mark(false);
-  m_as_cmd_enc.set_mark(false);
+  m_ce_as.set_mark(false);
   m_cmd_buff = m_cmd_queue->commandBuffer()->retain();
-  m_as_cmd_enc = m_cmd_buff->accelerationStructureCommandEncoder()->retain();
+  m_ce_as = m_cmd_buff->accelerationStructureCommandEncoder()->retain();
 }
 
 GPU_Context GPU_Interface::get_gpu_context() const {
-  return {m_device.get(), m_cmd_buff.get(), m_as_cmd_enc.get()};
+  return {m_device.get(), m_cmd_buff.get(), m_ce_as.get()};
 }
 
 void GPU_Interface::next_drawable() {
@@ -198,7 +192,7 @@ uint8_t GPU_Interface::render(
   if (!m_drawable.get())
     return Return_Code::Skip;
 
-  if (!m_as_cmd_enc.get() || !m_cmd_buff.get())
+  if (!m_ce_as.get() || !m_cmd_buff.get())
     cycle_gpu_context();
 
   if (!render_packets.empty())
@@ -206,8 +200,8 @@ uint8_t GPU_Interface::render(
   else
     m_tlas.smart_release();
 
-  m_as_cmd_enc->endEncoding();
-  m_as_cmd_enc.set_mark(true);
+  m_ce_as->endEncoding();
+  m_ce_as.set_mark(true);
 
   /* Gather camera data */
   const CTNM::Components::Camera &cam = registry.get<CTNM::Components::Camera>(
@@ -219,22 +213,21 @@ uint8_t GPU_Interface::render(
   gpu_cam.dir = cam.fpos - cam.pos;
   gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0) ? vec_f3{0.0f, 0.0f, 0.0f}
                                                      : normalize(gpu_cam.dir);
-  std::memcpy(m_cam_buff->contents(), &gpu_cam, sizeof(gpu_cam));
+  std::memcpy(m_buff_cam->contents(), &gpu_cam, sizeof(gpu_cam));
 
   /* Cycle to compute encoder */
-  m_comp_cmd_enc.smart_release();
-  m_comp_cmd_enc = m_cmd_buff->computeCommandEncoder()->retain();
-  m_comp_cmd_enc->setComputePipelineState(m_raytracing_ps.get());
+  m_ce_comp.smart_release();
+  m_ce_comp = m_cmd_buff->computeCommandEncoder()->retain();
+  m_ce_comp->setComputePipelineState(m_ps_rt.get());
   if (m_ift.get())
-    m_comp_cmd_enc->setIntersectionFunctionTable(m_ift.get(), 0);
+    m_ce_comp->setIntersectionFunctionTable(m_ift.get(), 0);
   if (m_tlas.get())
-    m_comp_cmd_enc->setAccelerationStructure(m_tlas.get(), 0);
-  m_comp_cmd_enc->setBuffer(m_cam_buff.get(), 0, 1);
-  m_comp_cmd_enc->setBuffer(m_img_out_buff.get(), 0, 2);
-  // m_comp_cmd_enc->dispatchThreads(...) figure this out to run raytracer
+    m_ce_comp->setAccelerationStructure(m_tlas.get(), 0);
+  m_ce_comp->setBuffer(m_buff_cam.get(), 0, 1);
+  // m_ce_comp->dispatchThreads(...) figure this out to run raytracer
 
-  m_comp_cmd_enc->endEncoding();
-  m_comp_cmd_enc.set_mark(true);
+  m_ce_comp->endEncoding();
+  m_ce_comp.set_mark(true);
 
   m_cmd_buff->presentDrawable(m_drawable.get());
   m_cmd_buff->commit();
@@ -250,7 +243,7 @@ uint8_t GPU_Interface::render(
 void GPU_Interface::create_tlas(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets) {
-  if (!m_as_cmd_enc.get())
+  if (!m_ce_as.get())
     throw std::runtime_error("AS command encoder is not available");
 
   /* Create instance descriptors buffer */
@@ -299,8 +292,8 @@ void GPU_Interface::create_tlas(
 
   m_tlas.smart_release();
   m_tlas = m_device->newAccelerationStructure(sizes.accelerationStructureSize);
-  m_as_cmd_enc->buildAccelerationStructure(m_tlas.get(), tlas_desc.get(),
-                                           scratch_buff.get(), 0);
+  m_ce_as->buildAccelerationStructure(m_tlas.get(), tlas_desc.get(),
+                                      scratch_buff.get(), 0);
 }
 
 void GPU_Interface::poll_events() const { glfwPollEvents(); }

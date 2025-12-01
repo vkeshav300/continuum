@@ -60,7 +60,7 @@ Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
     const CTNM::Components::Transform &transform) {
   /* Create bounding box buffer */
-  m_aabb_buff = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
+  m_buff_aabb = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
                                           MTL::ResourceStorageModeShared);
   m_ifn_idx = IFN_IDX::Sphere;
 
@@ -69,14 +69,14 @@ Render_Packet_AABB::Render_Packet_AABB(
   MTL::AccelerationStructureSizes sizes =
       context.device->accelerationStructureSizes(m_blas_desc.get());
 
-  m_scratch_buff = context.device->newBuffer(sizes.buildScratchBufferSize,
+  m_buff_scratch = context.device->newBuffer(sizes.buildScratchBufferSize,
                                              MTL::ResourceStorageModePrivate);
 
   /* Create acceleration structure */
   m_blas = context.device->newAccelerationStructure(m_blas_desc.get());
 
   context.as_cmd_enc->buildAccelerationStructure(
-      m_blas.get(), m_blas_desc.get(), m_scratch_buff.get(), 0);
+      m_blas.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
 
   /* Transformations */
   m_transformations = to_mtl_transformations_matrix(transform);
@@ -97,12 +97,12 @@ void Render_Packet_AABB::create_blas_desc(
 
   /* Create geometry descriptor */
   m_aabb = to_mtl_aabb(bbox);
-  std::memcpy(m_aabb_buff->contents(), &m_aabb,
+  std::memcpy(m_buff_aabb->contents(), &m_aabb,
               sizeof(m_aabb)); // Copy aabb to buffer
 
   MTL_Ptr<MTL::AccelerationStructureBoundingBoxGeometryDescriptor> geom_desc =
       MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()->init();
-  geom_desc->setBoundingBoxBuffer(m_aabb_buff.get());
+  geom_desc->setBoundingBoxBuffer(m_buff_aabb.get());
   geom_desc->setBoundingBoxCount(1);
   geom_desc->setOpaque(true);
 
@@ -140,7 +140,7 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
   MTL_Ptr<MTL::AccelerationStructure> blas_new =
       context.device->newAccelerationStructure(m_blas_desc.get());
   context.as_cmd_enc->refitAccelerationStructure(
-      m_blas.get(), m_blas_desc.get(), blas_new.get(), m_scratch_buff.get(), 0);
+      m_blas.get(), m_blas_desc.get(), blas_new.get(), m_buff_scratch.get(), 0);
 
   if (blas_new.get())
     m_blas = std::move(blas_new);

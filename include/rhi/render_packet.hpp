@@ -47,8 +47,8 @@ private:
   MTL::AxisAlignedBoundingBox m_aabb;
   MTL_Ptr<MTL::PrimitiveAccelerationStructureDescriptor> m_blas_desc = nullptr;
   MTL_Ptr<MTL::AccelerationStructure> m_blas = nullptr;
-  MTL_Ptr<MTL::Buffer> m_aabb_buff = nullptr;
-  MTL_Ptr<MTL::Buffer> m_scratch_buff = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_aabb = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_scratch = nullptr;
 
   MTL::PackedFloat4x3 m_transformations;
   NS::UInteger m_ifn_idx;
