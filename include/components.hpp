@@ -17,6 +17,7 @@ struct Sphere_AABB {
 struct Camera {
   vec_f3 pos;
   vec_f3 fpos; // Point to focus camera at
+  float fov;
 };
 
 } // namespace CTNM::Components

@@ -10,12 +10,15 @@
 #include <memory>
 
 /**
- * @brief Application entry point that initializes the GPU, scene registry, staging system, and runs the main render loop.
+ * @brief Application entry point that initializes the GPU, scene registry,
+ * staging system, and runs the main render loop.
  *
- * Initializes a CTNM GPU interface (800×600), creates an EnTT registry with a primary entity (Transform and Sphere_AABB)
- * and a camera entity, constructs a CTNM::Stager and connects a Sphere_AABB destruction callback, then enters the render
- * loop which advances the GPU context, stages scene data, issues render calls, waits for staging to become idle, and
- * processes events. Before exiting the callback connection is disconnected to avoid dangling references.
+ * Initializes a CTNM GPU interface (800×600), creates an EnTT registry with a
+ * primary entity (Transform and Sphere_AABB) and a camera entity, constructs a
+ * CTNM::Stager and connects a Sphere_AABB destruction callback, then enters the
+ * render loop which advances the GPU context, stages scene data, issues render
+ * calls, waits for staging to become idle, and processes events. Before exiting
+ * the callback connection is disconnected to avoid dangling references.
  *
  * @param argc Number of command-line arguments (unused).
  * @param argv Command-line arguments (unused).
@@ -32,7 +35,7 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Sphere_AABB>(entity, 1.0f);
   entt::entity camera = registry.create();
   registry.emplace<CTNM::Components::Camera>(camera, vec_f3{0.0f, 0.0f, -5.0f},
-                                             vec_f3{1.0f, -2.0f, 5.0f});
+                                             vec_f3{1.0f, -2.0f, 5.0f}, 75.0f);
 
   std::shared_ptr<CTNM::Stager> stager = std::make_shared<CTNM::Stager>();
   registry.on_destroy<CTNM::Components::Sphere_AABB>()

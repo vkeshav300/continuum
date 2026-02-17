@@ -48,7 +48,7 @@ k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
   float3 up = normalize(cross(right, forward));
 
   /* Factor in focal length (FOV) */
-  const float focal = 1.2f; // Temp, add to camera buffer later
+  const float focal = cam.fl;
   const float3 ray_dir =
       normalize(ndc.x * right + ndc.y * up + focal * forward);
 

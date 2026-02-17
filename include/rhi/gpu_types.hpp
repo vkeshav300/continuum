@@ -23,11 +23,13 @@ struct Camera {
 
   float3 pos;
   float3 dir;
+  float fl;
 
 #else
 
   vec_f3 pos;
   vec_f3 dir; // GPU processing is easier with point and direction
+  float fl;   // Focal length
 
 #endif
 };

@@ -4,6 +4,7 @@
 #include "rhi/render_packet.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -24,13 +25,17 @@ private:
   mutable std::condition_variable m_cv;
   std::atomic<int> m_inflight = 0;
 
+  // std::chrono::time_point m_tp_last = std::chrono::high_resolution_clock::now();
+  // std::chrono::duration m_dt;
+
 public:
   /**
- * @brief Constructs a Stager with empty packet storage and default synchronization state.
- *
- * Initializes internal containers as empty and the in-flight counter to zero.
- */
-Stager() = default;
+   * @brief Constructs a Stager with empty packet storage and default
+   * synchronization state.
+   *
+   * Initializes internal containers as empty and the in-flight counter to zero.
+   */
+  Stager() = default;
   ~Stager();
 
   void stage(entt::registry &registry, const RHI::GPU_Context &context);
