@@ -85,11 +85,11 @@ Render_Packet::~Render_Packet() = default;
  * @brief Constructs a render packet for an axis-aligned bounding box and prepares its GPU resources.
  *
  * Initializes GPU buffers and a bottom-level acceleration structure for the provided bounding box,
- * and computes the Metal transformation matrix for the given transform scaled by the bounding box radius.
+ * and computes the Metal transformation matrix directly from the provided transform.
  *
  * @param context GPU context providing device and command encoder used to allocate buffers and build the BLAS.
- * @param bbox Sphere_AABB that defines the bounding volume and its radius used to scale the transform.
- * @param transform Base transform (position, rotation, scale) that will be scaled by bbox.r to produce the stored Metal transformation matrix.
+ * @param bbox Sphere_AABB that defines the bounding volume used to build the BLAS.
+ * @param transform Base transform (position, rotation, scale) used directly to produce the stored Metal transformation matrix.
  */
 Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
@@ -238,11 +238,11 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
  *
  * Rebuilds the underlying BLAS if the provided bounding sphere differs from the
  * current one, then updates the stored transformation matrix using the given
- * transform scaled by the bounding sphere's radius.
+ * transform (position/rotation/scale) without additional scaling by the AABB radius.
  *
  * @param bbox New bounding sphere used to determine whether a BLAS refit is required
- *             and to scale the transform.
- * @param transform Base transform that will be scaled by `bbox.r` before being stored.
+ *             and to rebuild/refit the BLAS when needed.
+ * @param transform Base transform used directly for the stored Metal transformation matrix.
  */
 void Render_Packet_AABB::smart_update(
     const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,

@@ -30,6 +30,13 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
       registry.view<Components::Sphere_AABB, Components::Transform>();
 
+  std::shared_ptr<Stager> self;
+  {
+    const std::lock_guard<std::mutex> lock(m_mtx);
+    m_inflight.fetch_add(1, std::memory_order_relaxed);
+    self = shared_from_this();
+  }
+
   for (const auto &e : entities) {
     /* Create bounding box */
     const auto &[bbox, transform] =
@@ -46,8 +53,6 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   }
 
   /* Ensure cleanup of decomission packets syncs with GPU */
-  m_inflight.fetch_add(1, std::memory_order_relaxed);
-  std::shared_ptr<Stager> self = shared_from_this();
   context.cmd_buff->addCompletedHandler([self](MTL::CommandBuffer * /*cmd*/) {
     {
       const std::lock_guard<std::mutex> lock(self->m_mtx);
