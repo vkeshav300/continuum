@@ -25,7 +25,12 @@ private:
   std::atomic<int> m_inflight = 0;
 
 public:
-  Stager() = default;
+  /**
+ * @brief Constructs a Stager with empty packet storage and default synchronization state.
+ *
+ * Initializes internal containers as empty and the in-flight counter to zero.
+ */
+Stager() = default;
   ~Stager();
 
   void stage(entt::registry &registry, const RHI::GPU_Context &context);

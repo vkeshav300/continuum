@@ -24,7 +24,13 @@ enum IFN_IDX : NS::UInteger { Sphere = 0 };
 
 class Render_Packet {
 public:
-  virtual ~Render_Packet() = 0;
+  /**
+ * @brief Virtual destructor to enable polymorphic destruction of render packets.
+ *
+ * Declared pure to make Render_Packet an abstract interface and ensure derived
+ * destructors are invoked for proper resource cleanup.
+ */
+virtual ~Render_Packet() = 0;
 
   const virtual MTL_Ptr<MTL::AccelerationStructure> &get_as() const = 0;
   const virtual NS::UInteger get_ifn_idx() const = 0;

@@ -9,6 +9,18 @@
 #include <entt/entt.hpp>
 #include <memory>
 
+/**
+ * @brief Application entry point that initializes the GPU, scene registry, staging system, and runs the main render loop.
+ *
+ * Initializes a CTNM GPU interface (800×600), creates an EnTT registry with a primary entity (Transform and Sphere_AABB)
+ * and a camera entity, constructs a CTNM::Stager and connects a Sphere_AABB destruction callback, then enters the render
+ * loop which advances the GPU context, stages scene data, issues render calls, waits for staging to become idle, and
+ * processes events. Before exiting the callback connection is disconnected to avoid dangling references.
+ *
+ * @param argc Number of command-line arguments (unused).
+ * @param argv Command-line arguments (unused).
+ * @return int 0 on successful exit.
+ */
 int main(int argc, char *argv[]) {
   CTNM::RHI::GPU_Interface interface(800, 600);
 
