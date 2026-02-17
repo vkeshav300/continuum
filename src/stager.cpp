@@ -49,12 +49,15 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   m_inflight.fetch_add(1, std::memory_order_relaxed);
   std::shared_ptr<Stager> self = shared_from_this();
   context.cmd_buff->addCompletedHandler([self](MTL::CommandBuffer * /*cmd*/) {
-    const std::lock_guard<std::mutex> lock(self->m_mtx);
-    for (auto packet : self->m_packets_decomissioned)
-      self->m_packets.erase(packet);
+    {
+      const std::lock_guard<std::mutex> lock(self->m_mtx);
+      for (auto packet : self->m_packets_decomissioned)
+        self->m_packets.erase(packet);
 
-    self->m_packets_decomissioned.clear();
-    self->m_inflight.fetch_sub(1, std::memory_order_relaxed);
+      self->m_packets_decomissioned.clear();
+      self->m_inflight.fetch_sub(1, std::memory_order_relaxed);
+    }
+    self->m_cv.notify_all();
   });
 }
 
@@ -97,8 +100,8 @@ bool Stager::is_idle() const {
  * @brief Blocks until the stager has no in-flight operations.
  */
 void Stager::wait_until_idle() const {
-  while (!is_idle())
-    continue;
+  std::unique_lock<std::mutex> lock(m_mtx);
+  m_cv.wait(lock, [this] { return is_idle(); });
 }
 
 /**

@@ -114,9 +114,7 @@ Render_Packet_AABB::Render_Packet_AABB(
       m_blas.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
 
   /* Create transformations matrix */
-  CTNM::Components::Transform scaled_transform = transform;
-  scaled_transform.scl *= bbox.r;
-  m_transformations = to_mtl_transformations_matrix(scaled_transform);
+  m_transformations = to_mtl_transformations_matrix(transform);
 }
 
 /**
@@ -216,6 +214,16 @@ bool Render_Packet_AABB::needs_refit(
 void Render_Packet_AABB::refit(const GPU_Context &context,
                                const CTNM::Components::Sphere_AABB &bbox) {
   create_blas_desc(bbox);
+  const MTL::AccelerationStructureSizes sizes =
+      context.device->accelerationStructureSizes(m_blas_desc.get());
+  const bool needs_scratch_resize =
+      !m_buff_scratch.get() ||
+      m_buff_scratch->length() < sizes.refitScratchBufferSize;
+  if (needs_scratch_resize) {
+    m_buff_scratch = context.device->newBuffer(sizes.refitScratchBufferSize,
+                                               MTL::ResourceStorageModePrivate);
+  }
+
   MTL_Ptr<MTL::AccelerationStructure> blas_new =
       context.device->newAccelerationStructure(m_blas_desc.get());
   context.as_cmd_enc->refitAccelerationStructure(
@@ -242,9 +250,7 @@ void Render_Packet_AABB::smart_update(
   if (needs_refit(bbox))
     refit(context, bbox);
 
-  CTNM::Components::Transform scaled_transform = transform;
-  scaled_transform.scl *= bbox.r;
-  update_transformations(scaled_transform);
+  update_transformations(transform);
 }
 
 /**

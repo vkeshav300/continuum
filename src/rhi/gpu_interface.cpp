@@ -304,7 +304,13 @@ GPU_Context GPU_Interface::get_gpu_context() const {
  * the retained drawable in the member `m_drawable` for subsequent rendering operations.
  */
 void GPU_Interface::next_drawable() {
-  m_drawable = m_layer->nextDrawable()->retain();
+  auto *drawable = m_layer->nextDrawable();
+  if (!drawable) {
+    m_drawable = nullptr;
+    return;
+  }
+
+  m_drawable = drawable->retain();
 }
 
 /**
@@ -389,15 +395,21 @@ uint8_t GPU_Interface::render(
   m_ce_as.set_mark(true);
 
   /* Gather camera data */
-  const CTNM::Components::Camera &cam = registry.get<CTNM::Components::Camera>(
-      registry.view<CTNM::Components::Camera>()
-          .front()); // First object with camera component is camera
+  auto camera_view = registry.view<CTNM::Components::Camera>();
+  CTNM::Components::Camera cam = {
+      vec_f3{0.0f, 0.0f, 0.0f},
+      vec_f3{0.0f, 0.0f, 1.0f},
+  };
+  if (!camera_view.empty())
+    cam = registry.get<CTNM::Components::Camera>(
+        camera_view.front()); // First object with camera component is camera
 
   GPU_Types::Camera gpu_cam;
   gpu_cam.pos = cam.pos;
   gpu_cam.dir = cam.fpos - cam.pos;
-  gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0) ? vec_f3{0.0f, 0.0f, 0.0f}
-                                                     : normalize(gpu_cam.dir);
+  gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0)
+                    ? vec_f3{0.0f, 0.0f, 1.0f}
+                    : normalize(gpu_cam.dir);
   std::memcpy(m_buff_cam->contents(), &gpu_cam, sizeof(gpu_cam));
 
   /* Cycle to compute encoder */

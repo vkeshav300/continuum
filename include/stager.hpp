@@ -20,8 +20,8 @@ private:
       m_packets;
   std::vector<entt::entity> m_packets_decomissioned;
 
-  std::mutex m_mtx;
-  std::condition_variable m_cv;
+  mutable std::mutex m_mtx;
+  mutable std::condition_variable m_cv;
   std::atomic<int> m_inflight = 0;
 
 public:
