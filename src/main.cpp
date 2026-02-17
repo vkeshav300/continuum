@@ -2,6 +2,7 @@
  * TEMPORARY MAIN FILE
  */
 #include "components.hpp"
+#include "math_utils.hpp"
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
 
@@ -16,6 +17,13 @@ int main(int argc, char *argv[]) {
   entt::entity en1 = registry.create();
   registry.emplace<CTNM::Components::Transform>(en1);
   registry.emplace<CTNM::Components::Sphere_AABB>(en1);
+  registry.get<CTNM::Components::Transform>(en1).v = vec_f3{0.5f, 0.5f, 0.5f};
+
+  entt::entity en2 = registry.create();
+  registry.emplace<CTNM::Components::Transform>(en2);
+  registry.emplace<CTNM::Components::Sphere_AABB>(en2);
+  registry.get<CTNM::Components::Transform>(en2).p = vec_f3{3.0f, -0.5f, 0.0f};
+  registry.get<CTNM::Components::Transform>(en2).v = vec_f3{0.0f, -0.5f, 0.0f};
 
   entt::entity cam = registry.create();
   registry.emplace<CTNM::Components::Camera>(cam);

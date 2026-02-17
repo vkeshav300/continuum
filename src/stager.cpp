@@ -3,6 +3,7 @@
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 
