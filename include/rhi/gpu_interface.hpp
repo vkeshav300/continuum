@@ -30,7 +30,7 @@ private:
   /* Window interface */
   GLFWwindow *m_window = nullptr;
   NS::Window *m_window_ns = nullptr;
-  int m_fb_width, m_fb_height; // Framebuffer width, height
+  int m_fb_width = 0, m_fb_height = 0; // Framebuffer width, height
 
   /* Metal */
   MTL_Ptr<NS::AutoreleasePool> m_pool_full =
