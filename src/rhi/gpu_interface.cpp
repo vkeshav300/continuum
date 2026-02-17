@@ -28,6 +28,15 @@
 
 namespace CTNM::RHI {
 
+/**
+ * @brief Construct a GPU_Interface and initialize the windowing and Metal GPU resources.
+ *
+ * Initializes a GLFW window of the specified size and configures the Metal device, layer,
+ * command queue, GPU buffers, and rendering/compute pipelines required by the interface.
+ *
+ * @param width Initial window width in pixels.
+ * @param height Initial window height in pixels.
+ */
 GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
     : m_pool_full(NS::AutoreleasePool::alloc()->init()),
       m_device(MTL::CreateSystemDefaultDevice()),
@@ -38,12 +47,32 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
   mtl_create_pipelines();
 }
 
+/**
+ * @brief Convert a GLFW error into a C++ exception.
+ *
+ * Throws a runtime_error constructed from the GLFW error code and its description.
+ *
+ * @param code GLFW error code.
+ * @param description Human-readable error description from GLFW.
+ * @throws std::runtime_error Contains the GLFW error code and description.
+ */
 void GPU_Interface::glfw_error_callback(const int code,
                                         const char *description) {
   throw std::runtime_error("GLFW error (" + std::to_string(code) +
                            "): " + std::string(description));
 }
 
+/**
+ * @brief Forward the GLFW framebuffer resize event to the associated GPU_Interface.
+ *
+ * Retrieves the GPU_Interface instance stored in the GLFW window's user pointer
+ * and forwards the new framebuffer dimensions so the interface can update its
+ * render targets.
+ *
+ * @param window GLFW window that received the framebuffer resize event.
+ * @param width New framebuffer width in pixels.
+ * @param height New framebuffer height in pixels.
+ */
 void GPU_Interface::glfw_framebuffer_size_callback(GLFWwindow *window,
                                                    const int width,
                                                    const int height) {
@@ -51,6 +80,15 @@ void GPU_Interface::glfw_framebuffer_size_callback(GLFWwindow *window,
       ->glfw_resize_framebuffer(width, height);
 }
 
+/**
+ * @brief Update the Metal layer's drawable size to match the new framebuffer dimensions.
+ *
+ * If a Metal layer exists, sets its drawable size to the provided width and height (in pixels)
+ * and advances to the next drawable; does nothing if no layer is available.
+ *
+ * @param width New framebuffer width in pixels.
+ * @param height New framebuffer height in pixels.
+ */
 void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
   if (m_layer.get()) {
     m_layer->setDrawableSize(CGSizeMake(width, height));
@@ -58,6 +96,19 @@ void GPU_Interface::glfw_resize_framebuffer(const int width, const int height) {
   }
 }
 
+/**
+ * @brief Initialize GLFW and create a native window bound to the Metal layer.
+ *
+ * Initializes GLFW for Cocoa, creates a GLFW window without an OpenGL/Vulkan client
+ * API, configures window callbacks, queries the framebuffer size, binds the Metal
+ * device and pixel format to the view layer, sets the layer drawable size, and
+ * obtains the native (NS) window handle for Metal integration.
+ *
+ * @param width Initial window width in screen coordinates.
+ * @param height Initial window height in screen coordinates.
+ *
+ * @throws std::runtime_error if GLFW initialization or GLFW window creation fails.
+ */
 void GPU_Interface::glfw_create_window(const uint16_t &width,
                                        const uint16_t &height) {
   /* Initialize GLFW */
@@ -91,6 +142,15 @@ void GPU_Interface::glfw_create_window(const uint16_t &width,
   m_window_ns = Bridges::get_ns_window(m_window, m_layer.get());
 }
 
+/**
+ * @brief Loads the Metal default library and creates a command queue.
+ *
+ * Loads the device's default Metal library into the interface and allocates
+ * a command queue for submitting GPU work. This setup is required before
+ * creating pipelines or encoding commands.
+ *
+ * @throws std::runtime_error If the default Metal library cannot be loaded.
+ */
 void GPU_Interface::mtl_load() {
   m_lib = m_device->newDefaultLibrary();
   if (!m_lib.get())
@@ -99,6 +159,12 @@ void GPU_Interface::mtl_load() {
   m_cmd_queue = m_device->newCommandQueue();
 }
 
+/**
+ * @brief Allocate GPU-side buffers used by the renderer.
+ *
+ * Creates and initializes the camera uniform buffer and a small scene-state buffer
+ * used by GPU shaders.
+ */
 void GPU_Interface::mtl_create_buffs() {
   m_buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                    MTL::ResourceStorageModeShared);
@@ -106,6 +172,16 @@ void GPU_Interface::mtl_create_buffs() {
       m_device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
 }
 
+/**
+ * @brief Initializes Metal shader functions, the ray-tracing compute pipeline, the intersection function table, and the present render pipeline.
+ *
+ * Loads required shader functions from the Metal library, creates a compute pipeline for the raytracer with linked intersection functions, allocates and configures an intersection function table and function handle for sphere intersection, and creates a render pipeline state used to present the offscreen render target to the window (BGRA8Unorm).
+ *
+ * @throws std::runtime_error If any required shader function is missing in the default library.
+ * @throws std::runtime_error If creation of the compute pipeline state fails.
+ * @throws std::runtime_error If allocation of the intersection function table or creation/retention of the function handle fails.
+ * @throws std::runtime_error If creation of the present render pipeline state fails.
+ */
 void GPU_Interface::mtl_create_pipelines() {
   MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
@@ -181,6 +257,11 @@ void GPU_Interface::mtl_create_pipelines() {
     throw std::runtime_error("Failed to create present render pipeline state");
 }
 
+/**
+ * @brief Releases GPU interface platform resources.
+ *
+ * Destroys the GLFW window if one exists, clears internal window handles, and terminates the GLFW library.
+ */
 GPU_Interface::~GPU_Interface() {
   if (m_window) {
     glfwDestroyWindow(m_window);
@@ -191,6 +272,12 @@ GPU_Interface::~GPU_Interface() {
   glfwTerminate();
 }
 
+/**
+ * @brief Recycles the current GPU command context for the next frame.
+ *
+ * Releases the previous acceleration-structure encoder and command buffer, clears their internal marks,
+ * and allocates a fresh command buffer with a new acceleration-structure command encoder.
+ */
 void GPU_Interface::cycle_gpu_context() {
   m_ce_as.smart_release();
   m_cmd_buff.smart_release();
@@ -201,14 +288,36 @@ void GPU_Interface::cycle_gpu_context() {
   m_ce_as = m_cmd_buff->accelerationStructureCommandEncoder()->retain();
 }
 
+/**
+ * @brief Retrieve the current GPU context for command submission.
+ *
+ * @returns GPU_Context containing the Metal device, the active command buffer, and the current acceleration-structure command encoder.
+ */
 GPU_Context GPU_Interface::get_gpu_context() const {
   return {m_device.get(), m_cmd_buff.get(), m_ce_as.get()};
 }
 
+/**
+ * @brief Acquire the next drawable from the Metal layer and store it for rendering.
+ *
+ * Acquires the next CAMetalDrawable from the configured Metal layer, retains it, and stores
+ * the retained drawable in the member `m_drawable` for subsequent rendering operations.
+ */
 void GPU_Interface::next_drawable() {
   m_drawable = m_layer->nextDrawable()->retain();
 }
 
+/**
+ * @brief Ensure an offscreen ray-tracing texture exists and matches the given size.
+ *
+ * Validates the existing offscreen render target and, if missing or size-mismatched,
+ * allocates a new 2D BGRA8Unorm texture configured for shader read/write and private storage.
+ *
+ * @param width Target texture width in pixels.
+ * @param height Target texture height in pixels.
+ *
+ * @throws std::runtime_error If texture allocation fails.
+ */
 void GPU_Interface::ensure_rt_target(const NS::UInteger width,
                                      const NS::UInteger height) {
   /* Check if texture parameters are valid of if texture already exists with
@@ -238,6 +347,19 @@ void GPU_Interface::ensure_rt_target(const NS::UInteger width,
         "Failed to allocate offscreen ray tracing texture");
 }
 
+/**
+ * @brief Render a single frame by ray tracing into an offscreen texture and presenting it to the window drawable.
+ *
+ * Builds or updates GPU scene acceleration structures from provided render packets, uploads camera and scene state,
+ * dispatches the ray-tracing compute pass into an offscreen render target, then draws a full-screen triangle to present
+ * that target to the current drawable.
+ *
+ * @param render_packets Map of entity -> Render_Packet describing scene geometry and instances used to build the TLAS.
+ * @param mtx Mutex that protects access to `render_packets` during rendering.
+ * @param registry Entity registry used to read the active Camera component for this frame.
+ * @return uint8_t `Return_Code::Normal` on successful rendering and presentation; `Return_Code::Skip` when rendering is skipped
+ *         due to missing drawable, render target, or other required GPU resources.
+ */
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets,
@@ -336,6 +458,17 @@ uint8_t GPU_Interface::render(
   return Return_Code::Normal;
 }
 
+/**
+ * @brief Builds or updates the top-level acceleration structure (TLAS) for the scene.
+ *
+ * Creates instance descriptors and associated GPU resources from the provided render packets,
+ * allocates a scratch buffer and acceleration structure storage, and issues a build command
+ * that replaces the currently held TLAS.
+ *
+ * @param render_packets Map of entity -> Render_Packet pointers describing per-instance BLAS handles, transforms, and intersection metadata.
+ *
+ * @throws std::runtime_error If an acceleration-structure command encoder is not available.
+ */
 void GPU_Interface::create_tlas(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets) {
@@ -392,8 +525,18 @@ void GPU_Interface::create_tlas(
                                       scratch_buff.get(), 0);
 }
 
+/**
+ * @brief Processes pending GLFW window and input events.
+ *
+ * Dispatches outstanding windowing and input events to the GLFW event queue.
+ */
 void GPU_Interface::poll_events() const { glfwPollEvents(); }
 
+/**
+ * @brief Indicates whether the GLFW window has been requested to close.
+ *
+ * @return `true` if the GLFW window should close, `false` otherwise.
+ */
 bool GPU_Interface::should_close() const {
   return glfwWindowShouldClose(m_window);
 }

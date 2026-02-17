@@ -10,8 +10,22 @@
 
 namespace CTNM {
 
+/**
+ * @brief Destroy the Stager and release its owned resources.
+ *
+ * This default destructor allows member objects (packets, mutex, counters) to be
+ * cleaned up by their own destructors.
+ */
 Stager::~Stager() {}
 
+/**
+ * @brief Updates or creates render packets for entities that have a bounding sphere and transform, and schedules GPU-synchronized cleanup of packets marked for decommission.
+ *
+ * Processes all registry entities with Components::Sphere_AABB and Components::Transform: existing per-entity render packets are updated, missing packets are created, and a completion handler is attached to the provided GPU context's command buffer to remove decomissioned packets and decrement the internal in-flight counter once the GPU work finishes.
+ *
+ * @param registry EnTT registry containing entity components to stage.
+ * @param context GPU context whose command buffer is used to attach the completion handler and to initialize/update render packets.
+ */
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
       registry.view<Components::Sphere_AABB, Components::Transform>();
@@ -44,25 +58,57 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   });
 }
 
+/**
+ * @brief Provide read-only access to the current mapping of entities to render packets.
+ *
+ * @return const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>&
+ * A const reference to the internal map that associates each entity with its owned `RHI::Render_Packet`.
+ */
 const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
 Stager::get_render_packets() const {
   return m_packets;
 }
 
+/**
+ * @brief Marks an entity's render packet for decommissioning.
+ *
+ * Adds the given entity to the internal list of packets to remove; the entry
+ * will be removed later when the GPU command buffer signals completion.
+ * This operation is performed under internal synchronization.
+ *
+ * @param registry Registry the entity belongs to (unused but provided as callback context).
+ * @param e Entity whose render packet should be scheduled for removal.
+ */
 void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
   const std::lock_guard<std::mutex> lock(m_mtx);
   m_packets_decomissioned.push_back(e);
 }
 
+/**
+ * @brief Indicates whether the stager has no in-flight staging operations.
+ *
+ * @return `true` if there are no in-flight staging operations, `false` otherwise.
+ */
 bool Stager::is_idle() const {
   return m_inflight.load(std::memory_order_relaxed) == 0;
 }
 
+/**
+ * @brief Blocks until the stager has no in-flight operations.
+ */
 void Stager::wait_until_idle() const {
   while (!is_idle())
     continue;
 }
 
+/**
+ * @brief Accesses the Stager's internal mutex used to synchronize packet state.
+ *
+ * Provides a reference to the internal mutex that protects the stager's
+ * internal data structures (e.g., packet maps and decommission lists).
+ *
+ * @return std::mutex& Reference to the internal mutex.
+ */
 std::mutex &Stager::get_mutex() { return m_mtx; }
 
 } // namespace CTNM
