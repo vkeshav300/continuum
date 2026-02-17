@@ -46,6 +46,15 @@ struct Bounding_Box {
 #endif
 };
 
+#ifdef __METAL_VERSION__
+
+struct Sphere_Bounding_Box_Intersection_Result {
+  bool accept [[accept_intersection]];
+  float dist [[distance]];
+};
+
+#endif
+
 struct Sphere {
 #ifdef __METAL_VERSION__
 

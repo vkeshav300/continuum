@@ -7,11 +7,6 @@ using namespace CTNM;
 using namespace RHI;
 using namespace GPU_Types;
 
-struct Sphere_Bounding_Box_Intersection_Result {
-  bool accept [[accept_intersection]];
-  float dist [[distance]];
-};
-
 [[intersection(bounding_box, raytracing::triangle_data,
                raytracing::instancing)]]
 Sphere_Bounding_Box_Intersection_Result sphere_intersection(
