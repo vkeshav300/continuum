@@ -39,32 +39,32 @@ to_mtl_aabb(const CTNM::Components::Sphere_AABB &bbox) {
  *
  * Builds a 4x3 packed matrix where the first three columns contain the rotation
  * matrix with non-uniform scale applied and the fourth column contains the
- * translation. If the rotation axis in `transform.rtn` has near-zero length, a
+ * translation. If the rotation axis in `transform.r` has near-zero length, a
  * default X axis and zero rotation angle are used.
  *
- * @param transform Source transform containing `rtn` (axis-angle), `scl`
- * (scale), and `pos` (translation).
+ * @param transform Source transform containing `r` (axis-angle), `s`
+ * (scale), and `p` (translation).
  * @return MTL::PackedFloat4x3 Packed 4x3 matrix: columns 0..2 = scaled
  * rotation, column 3 = translation.
  */
 static inline MTL::PackedFloat4x3
 to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   vector_float3 axis =
-      vector_float3{transform.rtn.x, transform.rtn.y, transform.rtn.z};
+      vector_float3{transform.r.x, transform.r.y, transform.r.z};
   const bool degenerate_axis = approx_eq(simd::length(axis), 0.0f);
   if (!degenerate_axis)
     axis = simd::normalize(axis);
 
-  const float angle = degenerate_axis ? 0.0f : transform.rtn.w;
+  const float angle = degenerate_axis ? 0.0f : transform.r.w;
   const vector_float3 safe_axis =
       degenerate_axis ? vector_float3{1.0f, 0.0f, 0.0f} : axis;
 
   const simd_quatf quat = simd_quaternion(angle, safe_axis);
   matrix_float3x3 rotation = simd_matrix3x3(quat);
 
-  rotation.columns[0] *= transform.scl.x;
-  rotation.columns[1] *= transform.scl.y;
-  rotation.columns[2] *= transform.scl.z;
+  rotation.columns[0] *= transform.s.x;
+  rotation.columns[1] *= transform.s.y;
+  rotation.columns[2] *= transform.s.z;
 
   const MTL::PackedFloat3 p_col_0{rotation.columns[0].x, rotation.columns[0].y,
                                   rotation.columns[0].z},
@@ -72,7 +72,7 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
               rotation.columns[1].z},
       p_col_2{rotation.columns[2].x, rotation.columns[2].y,
               rotation.columns[2].z},
-      p_col_3{transform.pos.x, transform.pos.y, transform.pos.z};
+      p_col_3{transform.p.x, transform.p.y, transform.p.z};
 
   return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
 }

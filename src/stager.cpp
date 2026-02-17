@@ -43,6 +43,7 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   m_dt = now - m_tp_last;
   m_tp_last = now;
 
+  /* Update entities and create render packets */
   for (const auto &e : entities) {
     /* Create bounding box */
     const auto &[bbox, transform] =
@@ -50,9 +51,12 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
 
     const std::lock_guard<std::mutex> lock(m_mtx);
 
-    /* Temporary movement simulation */
-    if (!first_staging)
-      transform.pos.x += m_dt.count();
+    /* Movement */
+    if (!first_staging) {
+      transform.p.x += transform.v.x * m_dt.count();
+      transform.p.y += transform.v.y * m_dt.count();
+      transform.p.z += transform.v.z * m_dt.count();
+    }
 
     if (m_packets.find(e) !=
         m_packets.end()) { // For entities that already have associated packets
