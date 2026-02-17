@@ -21,8 +21,8 @@ namespace GPU_Types {
 struct Camera {
 #ifdef __METAL_VERSION__
 
-  packed_float3 pos;
-  packed_float3 dir;
+  float3 pos;
+  float3 dir;
 
 #else
 
@@ -58,7 +58,7 @@ struct Sphere_Bounding_Box_Intersection_Result {
 struct Sphere {
 #ifdef __METAL_VERSION__
 
-  packed_float3 center;
+  float3 center;
   float r;
 
 #else

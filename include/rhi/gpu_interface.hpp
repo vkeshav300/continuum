@@ -25,11 +25,6 @@ enum Return_Code : uint8_t {
   Fatal,
 };
 
-struct Dispatch_Size {
-  MTL::Size grid;
-  MTL::Size tg;
-};
-
 class GPU_Interface {
 private:
   /* Window interface */
@@ -48,20 +43,27 @@ private:
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
   MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_ce_as = nullptr;
   MTL_Ptr<MTL::ComputeCommandEncoder> m_ce_comp = nullptr;
+  MTL_Ptr<MTL::RenderCommandEncoder> m_ce_rndr = nullptr;
   MTL_Ptr<MTL::Buffer> m_buff_cam = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_scene = nullptr;
   MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
+  MTL_Ptr<MTL::Texture> m_tex_rt = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
   MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function
+  MTL_Ptr<MTL::Function> m_fn_v_present = nullptr;
+  MTL_Ptr<MTL::Function> m_fn_f_present = nullptr;
   MTL_Ptr<MTL::Function> m_fn_i_sphere =
       nullptr; // Sphere intersection function
   MTL_Ptr<MTL::FunctionHandle> m_fnh_i_sphere = nullptr;
   MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr; // Raytracing pipeline
+  MTL_Ptr<MTL::RenderPipelineState> m_ps_present = nullptr;
   MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
 
   void mtl_load();
   void mtl_create_buffs();
   void mtl_create_pipelines();
+  void ensure_rt_target(const NS::UInteger width, const NS::UInteger height);
 
   static void glfw_error_callback(const int code, const char *description);
   static void glfw_framebuffer_size_callback(GLFWwindow *window,

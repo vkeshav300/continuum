@@ -9,20 +9,18 @@
 #include <entt/entt.hpp>
 #include <memory>
 
-static void marker() {}
-
 int main(int argc, char *argv[]) {
   CTNM::RHI::GPU_Interface interface(800, 600);
 
   entt::registry registry;
   entt::entity entity = registry.create();
   registry.emplace<CTNM::Components::Transform>(
-      entity, vec_f3{0.0f, 0.0f, 0.0f}, vec_f3{1.0f, 1.0f, 1.0f},
+      entity, vec_f3{1.0f, -2.0f, 5.0f}, vec_f3{1.0f, 1.0f, 1.0f},
       vec_f4{0.0f, 0.0f, 0.0f, 0.0f});
   registry.emplace<CTNM::Components::Sphere_AABB>(entity, 1.0f);
   entt::entity camera = registry.create();
-  registry.emplace<CTNM::Components::Camera>(camera, vec_f3{-5.0f, 0.0f, 0.0f},
-                                             vec_f3{0.0f, 0.0f, 0.0f});
+  registry.emplace<CTNM::Components::Camera>(camera, vec_f3{0.0f, 0.0f, -5.0f},
+                                             vec_f3{1.0f, -2.0f, 5.0f});
 
   std::shared_ptr<CTNM::Stager> stager = std::make_shared<CTNM::Stager>();
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
@@ -44,8 +42,6 @@ int main(int argc, char *argv[]) {
   /* Prevent calling callback which might not exist */
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
       .disconnect<&CTNM::Stager::callback_bbox_destroyed>(*stager);
-
-  marker();
 
   return 0;
 }

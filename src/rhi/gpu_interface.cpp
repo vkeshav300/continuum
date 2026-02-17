@@ -6,6 +6,7 @@
 #include "rhi/mtl_ptr.hpp"
 #include "rhi/render_packet.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -84,6 +85,7 @@ void GPU_Interface::glfw_create_window(const uint16_t &width,
   glfwGetFramebufferSize(m_window, &m_fb_width, &m_fb_height);
   m_layer->setDevice(m_device.get());
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+  m_layer->setFramebufferOnly(true);
   m_layer->setDrawableSize(CGSizeMake(m_fb_width, m_fb_height));
 
   m_window_ns = Bridges::get_ns_window(m_window, m_layer.get());
@@ -100,6 +102,8 @@ void GPU_Interface::mtl_load() {
 void GPU_Interface::mtl_create_buffs() {
   m_buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                    MTL::ResourceStorageModeShared);
+  m_buff_scene =
+      m_device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
 }
 
 void GPU_Interface::mtl_create_pipelines() {
@@ -110,6 +114,16 @@ void GPU_Interface::mtl_create_pipelines() {
       "k_raytracer", NS::StringEncoding::UTF8StringEncoding));
   if (!m_fn_k_rt.get())
     throw std::runtime_error("Failed to find k_raytracer in default library");
+
+  m_fn_v_present = m_lib->newFunction(
+      NS::String::string("v_present", NS::StringEncoding::UTF8StringEncoding));
+  if (!m_fn_v_present.get())
+    throw std::runtime_error("Failed to find v_present in default library");
+
+  m_fn_f_present = m_lib->newFunction(
+      NS::String::string("f_present", NS::StringEncoding::UTF8StringEncoding));
+  if (!m_fn_f_present.get())
+    throw std::runtime_error("Failed to find f_present in default library");
 
   m_fn_i_sphere = m_lib->newFunction(NS::String::string(
       "sphere_intersection", NS::StringEncoding::UTF8StringEncoding));
@@ -153,6 +167,18 @@ void GPU_Interface::mtl_create_pipelines() {
 
   m_fnh_i_sphere->retain();
   m_ift->setFunction(m_fnh_i_sphere.get(), IFN_IDX::Sphere);
+
+  /* Create present render pipeline state */
+  MTL_Ptr<MTL::RenderPipelineDescriptor> present_ps_desc =
+      MTL::RenderPipelineDescriptor::alloc()->init();
+  present_ps_desc->setVertexFunction(m_fn_v_present.get());
+  present_ps_desc->setFragmentFunction(m_fn_f_present.get());
+  present_ps_desc->colorAttachments()->object(0)->setPixelFormat(
+      MTL::PixelFormatBGRA8Unorm);
+
+  m_ps_present = m_device->newRenderPipelineState(present_ps_desc.get(), &err);
+  if (!m_ps_present.get())
+    throw std::runtime_error("Failed to create present render pipeline state");
 }
 
 GPU_Interface::~GPU_Interface() {
@@ -183,15 +209,50 @@ void GPU_Interface::next_drawable() {
   m_drawable = m_layer->nextDrawable()->retain();
 }
 
+void GPU_Interface::ensure_rt_target(const NS::UInteger width,
+                                     const NS::UInteger height) {
+  /* Check if texture parameters are valid of if texture already exists with
+   * correct width and height */
+  if (width == 0 || height == 0)
+    return;
+
+  if (m_tex_rt.get() && m_tex_rt->width() == width &&
+      m_tex_rt->height() == height)
+    return;
+
+  /* Create texture if not */
+  MTL_Ptr<MTL::TextureDescriptor> tex_desc =
+      MTL::TextureDescriptor::alloc()->init();
+  tex_desc->setTextureType(MTL::TextureType2D);
+  tex_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+  tex_desc->setWidth(width);
+  tex_desc->setHeight(height);
+  tex_desc->setMipmapLevelCount(1);
+  tex_desc->setStorageMode(MTL::StorageModePrivate);
+  tex_desc->setUsage(MTL::TextureUsageShaderRead |
+                     MTL::TextureUsageShaderWrite);
+
+  m_tex_rt = m_device->newTexture(tex_desc.get());
+  if (!m_tex_rt.get())
+    throw std::runtime_error(
+        "Failed to allocate offscreen ray tracing texture");
+}
+
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets,
     std::mutex &mtx, const entt::registry &registry) {
-  const std::lock_guard<std::mutex> lock_guard(mtx);
+  const std::lock_guard<std::mutex> lock_guard(
+      mtx); // Avoid reading render packets while map is being mutated
   MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
   next_drawable();
   if (!m_drawable.get())
+    return Return_Code::Skip;
+
+  ensure_rt_target(m_drawable->texture()->width(),
+                   m_drawable->texture()->height());
+  if (!m_tex_rt.get())
     return Return_Code::Skip;
 
   if (!m_ce_as.get() || !m_cmd_buff.get())
@@ -222,14 +283,47 @@ uint8_t GPU_Interface::render(
   m_ce_comp = m_cmd_buff->computeCommandEncoder()->retain();
   m_ce_comp->setComputePipelineState(m_ps_rt.get());
   if (m_ift.get())
-    m_ce_comp->setIntersectionFunctionTable(m_ift.get(), 0);
+    m_ce_comp->setIntersectionFunctionTable(m_ift.get(), 3);
   if (m_tlas.get())
     m_ce_comp->setAccelerationStructure(m_tlas.get(), 0);
+
+  /* Link buffers for passing data to GPU */
+  const uint32_t has_scene = m_tlas.get() ? 1u : 0u;
+  std::memcpy(m_buff_scene->contents(), &has_scene, sizeof(has_scene));
   m_ce_comp->setBuffer(m_buff_cam.get(), 0, 1);
-  // m_ce_comp->dispatchThreads(...) figure this out to run raytracer
+  m_ce_comp->setBuffer(m_buff_scene.get(), 0, 2);
+  m_ce_comp->setTexture(m_tex_rt.get(), 0);
+
+  /* Dispatch GPU threads for raytracing pipeline */
+  const NS::UInteger tg_width = m_ps_rt->threadExecutionWidth();
+  const NS::UInteger tg_height = std::max<NS::UInteger>(
+      1, m_ps_rt->maxTotalThreadsPerThreadgroup() / tg_width);
+  const MTL::Size grid = MTL::Size(m_tex_rt->width(), m_tex_rt->height(), 1);
+  const MTL::Size tg =
+      MTL::Size(tg_width, std::min<NS::UInteger>(tg_height, 8), 1);
+  m_ce_comp->dispatchThreads(grid, tg);
 
   m_ce_comp->endEncoding();
   m_ce_comp.set_mark(true);
+
+  /* Update screen texture to match raytraced scene texture */
+  MTL_Ptr<MTL::RenderPassDescriptor> present_rp_desc =
+      MTL::RenderPassDescriptor::alloc()->init();
+  present_rp_desc->colorAttachments()->object(0)->setTexture(
+      m_drawable->texture());
+  present_rp_desc->colorAttachments()->object(0)->setLoadAction(
+      MTL::LoadActionDontCare);
+  present_rp_desc->colorAttachments()->object(0)->setStoreAction(
+      MTL::StoreActionStore);
+
+  m_ce_rndr.smart_release();
+  m_ce_rndr = m_cmd_buff->renderCommandEncoder(present_rp_desc.get())->retain();
+  m_ce_rndr->setRenderPipelineState(m_ps_present.get());
+  m_ce_rndr->setFragmentTexture(m_tex_rt.get(), 0);
+  m_ce_rndr->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                            NS::UInteger(3));
+  m_ce_rndr->endEncoding();
+  m_ce_rndr.set_mark(true);
 
   m_cmd_buff->presentDrawable(m_drawable.get());
   m_cmd_buff->commit();
