@@ -1,6 +1,6 @@
 #pragma once
 
-/* Numeric maniuplation */
+/* Numeric manipulation */
 bool approx_eq(const float a, const float b);
 
 #ifdef __APPLE__
