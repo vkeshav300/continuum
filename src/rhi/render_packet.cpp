@@ -78,8 +78,10 @@ Render_Packet_AABB::Render_Packet_AABB(
   context.as_cmd_enc->buildAccelerationStructure(
       m_blas.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
 
-  /* Transformations */
-  m_transformations = to_mtl_transformations_matrix(transform);
+  /* Create transformations matrix */
+  CTNM::Components::Transform scaled_transform = transform;
+  scaled_transform.scl *= bbox.r;
+  m_transformations = to_mtl_transformations_matrix(scaled_transform);
 }
 
 Render_Packet_AABB::~Render_Packet_AABB() {}
@@ -105,6 +107,7 @@ void Render_Packet_AABB::create_blas_desc(
   geom_desc->setBoundingBoxBuffer(m_buff_aabb.get());
   geom_desc->setBoundingBoxCount(1);
   geom_desc->setOpaque(true);
+  geom_desc->setIntersectionFunctionTableOffset(IFN_IDX::Sphere);
 
   MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {
       geom_desc.get()};
@@ -152,7 +155,9 @@ void Render_Packet_AABB::smart_update(
   if (needs_refit(bbox))
     refit(context, bbox);
 
-  update_transformations(transform);
+  CTNM::Components::Transform scaled_transform = transform;
+  scaled_transform.scl *= bbox.r;
+  update_transformations(scaled_transform);
 }
 
 void Render_Packet_AABB::update_transformations(
