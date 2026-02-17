@@ -7,21 +7,18 @@ using namespace CTNM;
 using namespace RHI;
 using namespace GPU_Types;
 
-[[intersection(bounding_box, raytracing::triangle_data,
-               raytracing::instancing)]]
+[[intersection(bounding_box, raytracing::instancing)]]
 Sphere_Bounding_Box_Intersection_Result sphere_intersection(
     vector_float3 origin [[origin]], vector_float3 direction [[direction]],
     uint primitive_id [[primitive_id]], float min_dist [[min_distance]],
     float max_dist [[max_distance]],
     const device Bounding_Box *bounding_boxes [[primitive_data]]) {
   Sphere_Bounding_Box_Intersection_Result result;
+  (void)primitive_id;
+  (void)bounding_boxes;
 
-  const Bounding_Box bbox = bounding_boxes[primitive_id];
-  const vector_float3 bbox_min = vector_float3(bbox.min);
-  const vector_float3 bbox_max = vector_float3(bbox.max);
-  const vector_float3 center = (bbox_min + bbox_max) * 0.5f;
-  const vector_float3 half_extent = (bbox_max - bbox_min) * 0.5f;
-  const float r = fmax(half_extent.x, fmax(half_extent.y, half_extent.z));
+  const vector_float3 center = vector_float3(0.0f, 0.0f, 0.0f);
+  const float r = 1.0f;
   const vector_float3 oc = origin - center;
 
   float a = dot(direction, direction);
@@ -32,7 +29,6 @@ Sphere_Bounding_Box_Intersection_Result sphere_intersection(
     result.accept = false;
   } else {
     result.dist = (-b - sqrt(disc)) / (2 * a);
-
     result.accept = result.dist >= min_dist && result.dist <= max_dist;
   }
 
