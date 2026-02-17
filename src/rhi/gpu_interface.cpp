@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -185,7 +186,8 @@ void GPU_Interface::next_drawable() {
 uint8_t GPU_Interface::render(
     const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
         &render_packets,
-    const entt::registry &registry) {
+    std::mutex &mtx, const entt::registry &registry) {
+  const std::lock_guard<std::mutex> lock_guard(mtx);
   MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
   next_drawable();

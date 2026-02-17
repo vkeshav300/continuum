@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include <GLFW/glfw3.h>
@@ -84,7 +85,7 @@ public:
   uint8_t
   render(const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
              &render_packets,
-         const entt::registry &registry);
+         std::mutex &mtx, const entt::registry &registry);
 
   bool should_close() const;
   void poll_events() const;

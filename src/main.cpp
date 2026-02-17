@@ -7,6 +7,7 @@
 #include "stager.hpp"
 
 #include <entt/entt.hpp>
+#include <memory>
 
 static void marker() {}
 
@@ -23,24 +24,26 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Camera>(camera, vec_f3{-5.0f, 0.0f, 0.0f},
                                              vec_f3{0.0f, 0.0f, 0.0f});
 
-  CTNM::Stager stager;
+  std::shared_ptr<CTNM::Stager> stager = std::make_shared<CTNM::Stager>();
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
-      .connect<&CTNM::Stager::callback_bbox_destroyed>(stager);
+      .connect<&CTNM::Stager::callback_bbox_destroyed>(*stager);
 
   while (!interface.should_close()) {
     interface.cycle_gpu_context();
-    stager.stage(registry, interface.get_gpu_context());
+    stager->stage(registry, interface.get_gpu_context());
 
-    if (interface.render(stager.get_render_packets(), registry) ==
-        CTNM::RHI::Return_Code::Skip)
+    if (interface.render(stager->get_render_packets(), stager->get_mutex(),
+                         registry) == CTNM::RHI::Return_Code::Skip)
       continue;
+
+    stager->wait_until_idle();
 
     interface.poll_events();
   }
 
   /* Prevent calling callback which might not exist */
   registry.on_destroy<CTNM::Components::Sphere_AABB>()
-      .disconnect<&CTNM::Stager::callback_bbox_destroyed>(stager);
+      .disconnect<&CTNM::Stager::callback_bbox_destroyed>(*stager);
 
   marker();
 
