@@ -8,7 +8,10 @@ struct Transform {
   vec_f3 p = {0.0f, 0.0f, 0.0f};       // Position
   vec_f3 s = {1.0f, 1.0f, 1.0f};       // Scale
   vec_f4 r = {0.0f, 0.0f, 0.0f, 0.0f}; // Rotation
-  vec_f3 v = {0.0f, 0.0f, 0.0f};       // Velocity
+};
+
+struct Physics {
+  vec_f3 v = {0.0f, 0.0f, 0.0f}; // Velocity
 };
 
 struct Sphere_AABB {
