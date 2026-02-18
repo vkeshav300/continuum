@@ -600,14 +600,20 @@ void GPU_Interface::create_tlas(
     m_rebuild = false;
     m_tlas_entities = std::move(tlas_entities);
   } else {
-    MTL_Ptr<MTL::AccelerationStructure> tlas_new =
-        m_device->newAccelerationStructure(m_tlas_desc.get());
-    m_ce_as->refitAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
-                                        tlas_new.get(),
-                                        m_tlas_scratch_buff.get(), 0);
+    if (sizes.accelerationStructureSize <= m_tlas->size()) {
+      m_ce_as->refitAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
+                                          nullptr,
+                                          m_tlas_scratch_buff.get(), 0);
+    } else {
+      MTL_Ptr<MTL::AccelerationStructure> tlas_new =
+          m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+      m_ce_as->refitAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
+                                          tlas_new.get(),
+                                          m_tlas_scratch_buff.get(), 0);
 
-    if (tlas_new.get())
-      m_tlas = std::move(tlas_new);
+      if (tlas_new.get())
+        m_tlas = std::move(tlas_new);
+    }
   }
 }
 

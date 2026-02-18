@@ -228,9 +228,9 @@ bool Render_Packet_AABB::needs_refit(
  * @brief Rebuilds and refits the bottom-level acceleration structure for the
  * given bounding box.
  *
- * Recreates the BLAS descriptor from `bbox`, allocates a new acceleration
- * structure, issues a refit command using the existing scratch buffer, and
- * replaces the internal BLAS if the new one is created.
+ * Recreates the BLAS descriptor from `bbox` and issues an in-place refit when
+ * possible. Falls back to out-of-place refit only when a larger BLAS allocation
+ * is required (or no BLAS exists yet).
  *
  * @param context GPU context providing the device and command encoder used to
  * allocate and refit the BLAS.
@@ -250,13 +250,25 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
                                                MTL::ResourceStorageModePrivate);
   }
 
-  MTL_Ptr<MTL::AccelerationStructure> blas_new =
-      context.device->newAccelerationStructure(m_blas_desc.get());
-  context.ce_as->refitAccelerationStructure(
-      m_blas.get(), m_blas_desc.get(), blas_new.get(), m_buff_scratch.get(), 0);
+  if (m_blas.get() && sizes.accelerationStructureSize <= m_blas->size()) {
+    context.ce_as->refitAccelerationStructure(
+        m_blas.get(), m_blas_desc.get(), nullptr, m_buff_scratch.get(), 0);
+  } else {
+    MTL_Ptr<MTL::AccelerationStructure> blas_new =
+        context.device->newAccelerationStructure(sizes.accelerationStructureSize);
 
-  if (blas_new.get())
-    m_blas = std::move(blas_new);
+    if (m_blas.get()) {
+      context.ce_as->refitAccelerationStructure(m_blas.get(), m_blas_desc.get(),
+                                                blas_new.get(),
+                                                m_buff_scratch.get(), 0);
+    } else {
+      context.ce_as->buildAccelerationStructure(blas_new.get(), m_blas_desc.get(),
+                                                m_buff_scratch.get(), 0);
+    }
+
+    if (blas_new.get())
+      m_blas = std::move(blas_new);
+  }
 }
 
 /**
