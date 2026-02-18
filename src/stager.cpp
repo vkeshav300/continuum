@@ -24,7 +24,7 @@ Stager::~Stager() {}
  * sphere and transform, and schedules GPU-synchronized cleanup of packets
  * marked for decommission.
  *
- * Processes all registry entities with Components::Sphere_AABB and
+ * Processes all registry entities with Components::AABB and
  * Components::Transform: existing per-entity render packets are updated,
  * missing packets are created, and a completion handler is attached to the
  * provided GPU context's command buffer to remove decomissioned packets and
@@ -36,7 +36,7 @@ Stager::~Stager() {}
  */
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
-      registry.view<Components::Sphere_AABB, Components::Transform>();
+      registry.view<Components::AABB, Components::Transform>();
 
   /* Calculate dt (time since last staging) */
   const auto now = std::chrono::steady_clock::now();
@@ -48,7 +48,7 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   /* Update entities and create render packets */
   for (const auto &e : entities) {
     const auto &[bbox, transform] =
-        registry.get<Components::Sphere_AABB, Components::Transform>(e);
+        registry.get<Components::AABB, Components::Transform>(e);
 
     const std::lock_guard<std::mutex> lock(m_mtx);
 

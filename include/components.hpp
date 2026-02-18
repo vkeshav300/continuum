@@ -14,7 +14,7 @@ struct Physics {
   vec_f3 v = {0.0f, 0.0f, 0.0f}; // Velocity
 };
 
-struct Sphere_AABB {
+struct AABB {
   float r = 1.0f;
 };
 
