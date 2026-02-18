@@ -28,7 +28,8 @@ private:
   mutable std::condition_variable m_cv;
   std::atomic<int> m_inflight = 0;
 
-  std::chrono::time_point<std::chrono::steady_clock> m_tp_last;
+  std::chrono::time_point<std::chrono::steady_clock> m_tp_last =
+      std::chrono::steady_clock::now();
   std::chrono::duration<float> m_dt;
 
 public:
