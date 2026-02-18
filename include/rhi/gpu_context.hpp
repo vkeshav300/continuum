@@ -9,7 +9,7 @@ namespace CTNM::RHI {
 struct GPU_Context {
   MTL::Device *device = nullptr;
   MTL::CommandBuffer *cmd_buff = nullptr;
-  MTL::AccelerationStructureCommandEncoder *as_cmd_enc = nullptr;
+  MTL::AccelerationStructureCommandEncoder *ce_as = nullptr;
 };
 
 } // namespace CTNM::RHI
