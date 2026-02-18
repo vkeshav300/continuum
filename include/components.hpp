@@ -16,8 +16,8 @@ struct Sphere_AABB {
 };
 
 struct Camera {
-  vec_f3 pos = {-5.0f, 0.0f, 0.0f};
-  vec_f3 fpos = {0.0f, 0.0f, 0.0f}; // Point to focus camera at
+  vec_f3 p = {-5.0f, 0.0f, 0.0f}; // Position
+  vec_f3 fp = {0.0f, 0.0f, 0.0f}; // Focused position
   float fov = 120.0f;
 };
 
