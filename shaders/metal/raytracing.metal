@@ -94,17 +94,3 @@ fragment float4 f_present(Present_Varyings in [[stage_in]],
                       filter::nearest);
   return src_tex.sample(s, in.uv);
 }
-
-// [[kernel]]
-// void raytracer(raytracing::primitive_acceleration_structure as [[buffer(0)]],
-// uint2 tid [[thread_position_in_grid]]) {
-// /* Generate ray */
-// raytracing::ray ray = generate_ray(tid);
-//
-// /* Generate intersector */
-// raytracing::intersector<> intersector;
-//
-// /* Intersect */
-// raytracing::intersection_result<> intersection = intersector.intersect(ray,
-// as);
-// }
