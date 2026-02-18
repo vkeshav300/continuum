@@ -424,12 +424,7 @@ uint8_t GPU_Interface::render(
   /* Gather camera data */
   auto camera_view = registry.view<CTNM::Components::Camera>();
   CTNM::Components::Camera cam;
-  if (camera_view.empty())
-    CTNM::Components::Camera cam = {
-        vec_f3{0.0f, 0.0f, 0.0f},
-        vec_f3{0.0f, 0.0f, 1.0f},
-    };
-  else
+  if (!camera_view.empty())
     cam = registry.get<CTNM::Components::Camera>(
         camera_view.front()); // First object with camera component is camera
 
