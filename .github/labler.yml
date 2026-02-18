@@ -1,22 +1,33 @@
-# .github/labeler.yml
-# Automatically apply labels to PRs based on the files that are changed.
+shaders:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "shaders/**"
 
-"Render Hardware Interface":
-  - "src/rhi/**"
-  - "include/rhi/**"
+build-system:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "CMakeLists.txt"
+          - "cmake/**"
+          - "**/*.cmake"
 
-"Shaders":
-  - "shaders/**"
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "dependencies/**"
 
-"ECS":
-- "include/components.h"
+render-pipeline:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/rhi/**"
+          - "include/rhi/**"
+          - "shaders/**"
+          - "src/**/*render*"
+          - "include/**/*render*"
 
-"Data Structures":
-- "include/vectors.h"
-
-"Dependencies":
-- "dependences/**"
-
-"CMake":
-- "CMakeLists.txt"
-- "cmake/**"
+stager:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/stager.cpp"
+          - "include/stager.hpp"
+          - "src/**/*stager*"
+          - "include/**/*stager*"
