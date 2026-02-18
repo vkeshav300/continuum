@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 #include <entt/entt.hpp>
@@ -48,6 +49,8 @@ private:
   MTL_Ptr<MTL::Buffer> m_buff_scene = nullptr;
   MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
   MTL_Ptr<MTL::Texture> m_tex_rt = nullptr;
+  bool m_rebuild = true; // If tlas needs rebuild
+  std::vector<entt::entity> m_tlas_entities;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
   MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function

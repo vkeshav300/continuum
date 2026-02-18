@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -415,8 +416,11 @@ uint8_t GPU_Interface::render(
 
   if (!render_packets.empty())
     create_tlas(render_packets);
-  else
+  else {
     m_tlas.smart_release();
+    m_rebuild = true;
+    m_tlas_entities.clear();
+  }
 
   m_ce_as->endEncoding();
   m_ce_as.set_mark(true);
@@ -514,8 +518,21 @@ void GPU_Interface::create_tlas(
   if (!m_ce_as.get())
     throw std::runtime_error("AS command encoder is not available");
 
+  std::vector<entt::entity> tlas_entities;
+  tlas_entities.reserve(render_packets.size());
+  for (const auto &[entity, _] : render_packets)
+    tlas_entities.emplace_back(entity);
+  std::sort(tlas_entities.begin(), tlas_entities.end(),
+            [](const entt::entity a, const entt::entity b) {
+              return static_cast<std::underlying_type_t<entt::entity>>(a) <
+                     static_cast<std::underlying_type_t<entt::entity>>(b);
+            });
+
+  const bool tlas_set_changed = (tlas_entities != m_tlas_entities);
+  const bool needs_rebuild = m_rebuild || !m_tlas.get() || tlas_set_changed;
+
   /* Create instance descriptors buffer */
-  const size_t instance_count = render_packets.size();
+  const size_t instance_count = tlas_entities.size();
   MTL_Ptr<MTL::Buffer> instances_buff = m_device->newBuffer(
       instance_count * sizeof(MTL::AccelerationStructureInstanceDescriptor),
       MTL::ResourceStorageModeShared);
@@ -528,14 +545,15 @@ void GPU_Interface::create_tlas(
   blas_handles.reserve(instance_count);
 
   size_t idx = 0;
-  for (const auto &[_, packet] : render_packets) {
+  for (const auto entity : tlas_entities) {
+    const auto &packet = render_packets.at(entity);
     MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx];
     blas_handles.emplace_back(packet->get_as().get());
     asi_desc.accelerationStructureIndex = idx++;
     asi_desc.transformationMatrix = packet->get_transformations();
     asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
     asi_desc.mask = 0xFF;
-    asi_desc.intersectionFunctionTableOffset = IFN_IDX::Sphere;
+    asi_desc.intersectionFunctionTableOffset = packet->get_ifn_idx();
   }
 
   /* Create TLAS */
@@ -545,7 +563,7 @@ void GPU_Interface::create_tlas(
   tlas_desc->setInstanceDescriptorStride(
       sizeof(MTL::AccelerationStructureInstanceDescriptor));
   tlas_desc->setInstanceCount(idx);
-  tlas_desc->setUsage(MTL::AccelerationStructureUsageNone);
+  tlas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   if (!blas_handles.empty()) {
     NS::Array *blas_array =
         NS::Array::array(reinterpret_cast<NS::Object **>(blas_handles.data()),
@@ -555,13 +573,28 @@ void GPU_Interface::create_tlas(
 
   MTL::AccelerationStructureSizes sizes =
       m_device->accelerationStructureSizes(tlas_desc.get());
+  const NS::UInteger scratch_size =
+      needs_rebuild ? sizes.buildScratchBufferSize : sizes.refitScratchBufferSize;
   MTL_Ptr<MTL::Buffer> scratch_buff = m_device->newBuffer(
-      sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
+      scratch_size, MTL::ResourceStorageModePrivate);
 
-  m_tlas.smart_release();
-  m_tlas = m_device->newAccelerationStructure(sizes.accelerationStructureSize);
-  m_ce_as->buildAccelerationStructure(m_tlas.get(), tlas_desc.get(),
-                                      scratch_buff.get(), 0);
+  if (needs_rebuild) {
+    m_tlas.smart_release();
+    m_tlas =
+        m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+    m_ce_as->buildAccelerationStructure(m_tlas.get(), tlas_desc.get(),
+                                        scratch_buff.get(), 0);
+    m_rebuild = false;
+    m_tlas_entities = std::move(tlas_entities);
+  } else {
+    MTL_Ptr<MTL::AccelerationStructure> tlas_new =
+        m_device->newAccelerationStructure(tlas_desc.get());
+    m_ce_as->refitAccelerationStructure(m_tlas.get(), tlas_desc.get(),
+                                        tlas_new.get(), scratch_buff.get(), 0);
+
+    if (tlas_new.get())
+      m_tlas = std::move(tlas_new);
+  }
 }
 
 /**
