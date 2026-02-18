@@ -424,18 +424,13 @@ uint8_t GPU_Interface::render(
   /* Gather camera data */
   auto camera_view = registry.view<CTNM::Components::Camera>();
   CTNM::Components::Camera cam;
-  if (camera_view.empty())
-    CTNM::Components::Camera cam = {
-        vec_f3{0.0f, 0.0f, 0.0f},
-        vec_f3{0.0f, 0.0f, 1.0f},
-    };
-  else
+  if (!camera_view.empty())
     cam = registry.get<CTNM::Components::Camera>(
         camera_view.front()); // First object with camera component is camera
 
   GPU_Types::Camera gpu_cam;
-  gpu_cam.pos = cam.pos;
-  gpu_cam.dir = cam.fpos - cam.pos;
+  gpu_cam.pos = cam.p;
+  gpu_cam.dir = cam.fp - cam.p;
   gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0) ? vec_f3{0.0f, 0.0f, 1.0f}
                                                      : normalize(gpu_cam.dir);
   gpu_cam.fl = 1.0f / (2.0f * tanf((cam.fov * M_PI / 180.0f) / 2.0f));

@@ -16,7 +16,7 @@
 /**
  * @brief Create a Metal AxisAlignedBoundingBox from a sphere AABB.
  *
- * Converts a CTNM::Components::Sphere_AABB (centered at origin) into an
+ * Converts a CTNM::Components::AABB (centered at origin) into an
  * MTL::AxisAlignedBoundingBox by mapping the sphere radius to the box's minimum
  * and maximum corner coordinates.
  *
@@ -25,7 +25,7 @@
  * and max = (r, r, r).
  */
 static inline MTL::AxisAlignedBoundingBox
-to_mtl_aabb(const CTNM::Components::Sphere_AABB &bbox) {
+to_mtl_aabb(const CTNM::Components::AABB &bbox) {
   MTL::AxisAlignedBoundingBox aabb;
   aabb.min = {-bbox.r, -bbox.r, -bbox.r};
   aabb.max = {bbox.r, bbox.r, bbox.r};
@@ -96,13 +96,13 @@ Render_Packet::~Render_Packet() = default;
  *
  * @param context GPU context providing device and command encoder used to
  * allocate buffers and build the BLAS.
- * @param bbox Sphere_AABB that defines the bounding volume used to build the
+ * @param bbox AABB that defines the bounding volume used to build the
  * BLAS.
  * @param transform Base transform (position, rotation, scale) used directly to
  * produce the stored Metal transformation matrix.
  */
 Render_Packet_AABB::Render_Packet_AABB(
-    const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
+    const GPU_Context &context, const CTNM::Components::AABB &bbox,
     const CTNM::Components::Transform &transform) {
   /* Create bounding box buffer */
   m_buff_aabb = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
@@ -165,11 +165,10 @@ const NS::UInteger Render_Packet_AABB::get_ifn_idx() const { return m_ifn_idx; }
  * intersection-function-table offset set to the Sphere index) and the
  * acceleration structure usage to allow refitting.
  *
- * @param bbox Sphere_AABB whose bounds and radius are used to create the BLAS
+ * @param bbox AABB whose bounds and radius are used to create the BLAS
  * geometry descriptor and to populate the GPU AABB buffer.
  */
-void Render_Packet_AABB::create_blas_desc(
-    const CTNM::Components::Sphere_AABB &bbox) {
+void Render_Packet_AABB::create_blas_desc(const CTNM::Components::AABB &bbox) {
   m_blas_desc.smart_release();
   MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
 
@@ -211,7 +210,7 @@ void Render_Packet_AABB::create_blas_desc(
  * tolerance, `false` otherwise.
  */
 bool Render_Packet_AABB::needs_refit(
-    const CTNM::Components::Sphere_AABB &bbox_new) const {
+    const CTNM::Components::AABB &bbox_new) const {
   /* If the bounding box has changed, object needs refit
    * approx_eq is used to prevent refitting with negligable changes in
    * bounding box size
@@ -239,7 +238,7 @@ bool Render_Packet_AABB::needs_refit(
  * acceleration structure for.
  */
 void Render_Packet_AABB::refit(const GPU_Context &context,
-                               const CTNM::Components::Sphere_AABB &bbox) {
+                               const CTNM::Components::AABB &bbox) {
   create_blas_desc(bbox);
   const MTL::AccelerationStructureSizes sizes =
       context.device->accelerationStructureSizes(m_blas_desc.get());
@@ -274,7 +273,7 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
  * transformation matrix.
  */
 void Render_Packet_AABB::smart_update(
-    const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
+    const GPU_Context &context, const CTNM::Components::AABB &bbox,
     const CTNM::Components::Transform &transform) {
   if (needs_refit(bbox))
     refit(context, bbox);

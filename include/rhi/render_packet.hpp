@@ -13,7 +13,7 @@
 #include <simd/simd.h>
 
 static inline MTL::AxisAlignedBoundingBox
-to_mtl_aabb(const CTNM::Components::Sphere_AABB &bbox);
+to_mtl_aabb(const CTNM::Components::AABB &bbox);
 
 static inline MTL::PackedFloat4x3
 to_mtl_transformations_matrix(const CTNM::Components::Transform &transform);
@@ -30,12 +30,12 @@ public:
   const virtual NS::UInteger get_ifn_idx() const = 0;
 
   virtual void smart_update(const GPU_Context &context,
-                            const CTNM::Components::Sphere_AABB &bbox,
+                            const CTNM::Components::AABB &bbox,
                             const CTNM::Components::Transform &transform) = 0;
 
-  virtual bool needs_refit(const CTNM::Components::Sphere_AABB &bbox) const = 0;
+  virtual bool needs_refit(const CTNM::Components::AABB &bbox) const = 0;
   virtual void refit(const GPU_Context &context,
-                     const CTNM::Components::Sphere_AABB &bbox) = 0;
+                     const CTNM::Components::AABB &bbox) = 0;
 
   virtual void
   update_transformations(const CTNM::Components::Transform &transform) = 0;
@@ -53,11 +53,11 @@ private:
   MTL::PackedFloat4x3 m_transformations;
   NS::UInteger m_ifn_idx;
 
-  void create_blas_desc(const CTNM::Components::Sphere_AABB &bbox);
+  void create_blas_desc(const CTNM::Components::AABB &bbox);
 
 public:
   Render_Packet_AABB(const GPU_Context &context,
-                     const CTNM::Components::Sphere_AABB &bbox,
+                     const CTNM::Components::AABB &bbox,
                      const CTNM::Components::Transform &transform);
   ~Render_Packet_AABB();
 
@@ -65,12 +65,12 @@ public:
   const NS::UInteger get_ifn_idx() const override;
 
   void smart_update(const GPU_Context &context,
-                    const CTNM::Components::Sphere_AABB &bbox,
+                    const CTNM::Components::AABB &bbox,
                     const CTNM::Components::Transform &transform) override;
 
-  bool needs_refit(const CTNM::Components::Sphere_AABB &bbox) const override;
+  bool needs_refit(const CTNM::Components::AABB &bbox) const override;
   void refit(const GPU_Context &context,
-             const CTNM::Components::Sphere_AABB &bbox) override;
+             const CTNM::Components::AABB &bbox) override;
 
   void
   update_transformations(const CTNM::Components::Transform &transform) override;

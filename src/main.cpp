@@ -16,21 +16,20 @@ int main(int argc, char *argv[]) {
 
   entt::entity en1 = registry.create();
   registry.emplace<CTNM::Components::Transform>(en1);
-  registry.emplace<CTNM::Components::Sphere_AABB>(en1);
-  registry.get<CTNM::Components::Transform>(en1).v = vec_f3{0.5f, 0.5f, 0.5f};
+  registry.emplace<CTNM::Components::AABB>(en1);
+  registry.emplace<CTNM::Components::Physics>(en1, vec_f3{0.5f, 0.5f, 0.5f});
 
   entt::entity en2 = registry.create();
-  registry.emplace<CTNM::Components::Transform>(en2);
-  registry.emplace<CTNM::Components::Sphere_AABB>(en2);
-  registry.get<CTNM::Components::Transform>(en2).p = vec_f3{3.0f, -0.5f, 0.0f};
-  registry.get<CTNM::Components::Transform>(en2).v = vec_f3{0.0f, -0.5f, 0.0f};
+  registry.emplace<CTNM::Components::Transform>(en2, vec_f3{3.0f, -0.5f, 0.0f});
+  registry.emplace<CTNM::Components::AABB>(en2);
+  registry.emplace<CTNM::Components::Physics>(en2, vec_f3{0.0f, -0.5f, 0.0f});
 
   entt::entity cam = registry.create();
   registry.emplace<CTNM::Components::Camera>(cam);
   registry.get<CTNM::Components::Camera>(cam).fov = 45.0f;
 
   std::shared_ptr<CTNM::Stager> stager = std::make_shared<CTNM::Stager>();
-  registry.on_destroy<CTNM::Components::Sphere_AABB>()
+  registry.on_destroy<CTNM::Components::AABB>()
       .connect<&CTNM::Stager::callback_bbox_destroyed>(*stager);
 
   while (!interface.should_close()) {
@@ -47,7 +46,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* Prevent double freeing */
-  registry.on_destroy<CTNM::Components::Sphere_AABB>()
+  registry.on_destroy<CTNM::Components::AABB>()
       .disconnect<&CTNM::Stager::callback_bbox_destroyed>(*stager);
 
   return 0;

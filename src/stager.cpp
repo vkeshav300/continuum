@@ -24,7 +24,7 @@ Stager::~Stager() {}
  * sphere and transform, and schedules GPU-synchronized cleanup of packets
  * marked for decommission.
  *
- * Processes all registry entities with Components::Sphere_AABB and
+ * Processes all registry entities with Components::AABB and
  * Components::Transform: existing per-entity render packets are updated,
  * missing packets are created, and a completion handler is attached to the
  * provided GPU context's command buffer to remove decomissioned packets and
@@ -36,27 +36,28 @@ Stager::~Stager() {}
  */
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
-      registry.view<Components::Sphere_AABB, Components::Transform>();
+      registry.view<Components::AABB, Components::Transform>();
 
   /* Calculate dt (time since last staging) */
   const auto now = std::chrono::steady_clock::now();
   const bool first_staging = m_ct == 0;
   m_dt = now - m_tp_last;
+  const float dt = m_dt.count();
   m_tp_last = now;
 
   /* Update entities and create render packets */
   for (const auto &e : entities) {
-    /* Create bounding box */
     const auto &[bbox, transform] =
-        registry.get<Components::Sphere_AABB, Components::Transform>(e);
+        registry.get<Components::AABB, Components::Transform>(e);
 
     const std::lock_guard<std::mutex> lock(m_mtx);
 
     /* Movement */
-    if (!first_staging) {
-      transform.p.x += transform.v.x * m_dt.count();
-      transform.p.y += transform.v.y * m_dt.count();
-      transform.p.z += transform.v.z * m_dt.count();
+    if (!first_staging && registry.all_of<Components::Physics>(e)) {
+      const auto &phys = registry.get<Components::Physics>(e);
+      transform.p.x += phys.v.x * dt;
+      transform.p.y += phys.v.y * dt;
+      transform.p.z += phys.v.z * dt;
     }
 
     if (m_packets.find(e) !=
