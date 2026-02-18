@@ -16,11 +16,13 @@
 /**
  * @brief Create a Metal AxisAlignedBoundingBox from a sphere AABB.
  *
- * Converts a CTNM::Components::Sphere_AABB (centered at origin) into an MTL::AxisAlignedBoundingBox
- * by mapping the sphere radius to the box's minimum and maximum corner coordinates.
+ * Converts a CTNM::Components::Sphere_AABB (centered at origin) into an
+ * MTL::AxisAlignedBoundingBox by mapping the sphere radius to the box's minimum
+ * and maximum corner coordinates.
  *
  * @param bbox Sphere AABB whose `r` field is used as the radius.
- * @return MTL::AxisAlignedBoundingBox Axis-aligned box with min = (-r, -r, -r) and max = (r, r, r).
+ * @return MTL::AxisAlignedBoundingBox Axis-aligned box with min = (-r, -r, -r)
+ * and max = (r, r, r).
  */
 static inline MTL::AxisAlignedBoundingBox
 to_mtl_aabb(const CTNM::Components::Sphere_AABB &bbox) {
@@ -32,34 +34,37 @@ to_mtl_aabb(const CTNM::Components::Sphere_AABB &bbox) {
 }
 
 /**
- * @brief Convert a CTNM Transform into a Metal PackedFloat4x3 transformation matrix.
+ * @brief Convert a CTNM Transform into a Metal PackedFloat4x3 transformation
+ * matrix.
  *
- * Builds a 4x3 packed matrix where the first three columns contain the rotation matrix
- * with non-uniform scale applied and the fourth column contains the translation.
- * If the rotation axis in `transform.rtn` has near-zero length, a default X axis and
- * zero rotation angle are used.
+ * Builds a 4x3 packed matrix where the first three columns contain the rotation
+ * matrix with non-uniform scale applied and the fourth column contains the
+ * translation. If the rotation axis in `transform.r` has near-zero length, a
+ * default X axis and zero rotation angle are used.
  *
- * @param transform Source transform containing `rtn` (axis-angle), `scl` (scale), and `pos` (translation).
- * @return MTL::PackedFloat4x3 Packed 4x3 matrix: columns 0..2 = scaled rotation, column 3 = translation.
+ * @param transform Source transform containing `r` (axis-angle), `s`
+ * (scale), and `p` (translation).
+ * @return MTL::PackedFloat4x3 Packed 4x3 matrix: columns 0..2 = scaled
+ * rotation, column 3 = translation.
  */
 static inline MTL::PackedFloat4x3
 to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   vector_float3 axis =
-      vector_float3{transform.rtn.x, transform.rtn.y, transform.rtn.z};
+      vector_float3{transform.r.x, transform.r.y, transform.r.z};
   const bool degenerate_axis = approx_eq(simd::length(axis), 0.0f);
   if (!degenerate_axis)
     axis = simd::normalize(axis);
 
-  const float angle = degenerate_axis ? 0.0f : transform.rtn.w;
+  const float angle = degenerate_axis ? 0.0f : transform.r.w;
   const vector_float3 safe_axis =
       degenerate_axis ? vector_float3{1.0f, 0.0f, 0.0f} : axis;
 
-  simd_quatf quat = simd_quaternion(angle, safe_axis);
+  const simd_quatf quat = simd_quaternion(angle, safe_axis);
   matrix_float3x3 rotation = simd_matrix3x3(quat);
 
-  rotation.columns[0] *= transform.scl.x;
-  rotation.columns[1] *= transform.scl.y;
-  rotation.columns[2] *= transform.scl.z;
+  rotation.columns[0] *= transform.s.x;
+  rotation.columns[1] *= transform.s.y;
+  rotation.columns[2] *= transform.s.z;
 
   const MTL::PackedFloat3 p_col_0{rotation.columns[0].x, rotation.columns[0].y,
                                   rotation.columns[0].z},
@@ -67,7 +72,7 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
               rotation.columns[1].z},
       p_col_2{rotation.columns[2].x, rotation.columns[2].y,
               rotation.columns[2].z},
-      p_col_3{transform.pos.x, transform.pos.y, transform.pos.z};
+      p_col_3{transform.p.x, transform.p.y, transform.p.z};
 
   return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
 }
@@ -82,14 +87,19 @@ namespace CTNM::RHI {
 Render_Packet::~Render_Packet() = default;
 
 /**
- * @brief Constructs a render packet for an axis-aligned bounding box and prepares its GPU resources.
+ * @brief Constructs a render packet for an axis-aligned bounding box and
+ * prepares its GPU resources.
  *
- * Initializes GPU buffers and a bottom-level acceleration structure for the provided bounding box,
- * and computes the Metal transformation matrix directly from the provided transform.
+ * Initializes GPU buffers and a bottom-level acceleration structure for the
+ * provided bounding box, and computes the Metal transformation matrix directly
+ * from the provided transform.
  *
- * @param context GPU context providing device and command encoder used to allocate buffers and build the BLAS.
- * @param bbox Sphere_AABB that defines the bounding volume used to build the BLAS.
- * @param transform Base transform (position, rotation, scale) used directly to produce the stored Metal transformation matrix.
+ * @param context GPU context providing device and command encoder used to
+ * allocate buffers and build the BLAS.
+ * @param bbox Sphere_AABB that defines the bounding volume used to build the
+ * BLAS.
+ * @param transform Base transform (position, rotation, scale) used directly to
+ * produce the stored Metal transformation matrix.
  */
 Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
@@ -118,35 +128,45 @@ Render_Packet_AABB::Render_Packet_AABB(
 }
 
 /**
- * @brief Destroys the Render_Packet_AABB and releases its associated GPU/Metal resources.
+ * @brief Destroys the Render_Packet_AABB and releases its associated GPU/Metal
+ * resources.
  *
- * Ensures any owned Metal buffers, acceleration structures, and related GPU resources
- * are released when the packet is destroyed.
+ * Ensures any owned Metal buffers, acceleration structures, and related GPU
+ * resources are released when the packet is destroyed.
  */
 Render_Packet_AABB::~Render_Packet_AABB() {}
 
 /**
  * @brief Accesses the packet's bottom-level acceleration structure (BLAS).
  *
- * @return const MTL_Ptr<MTL::AccelerationStructure>& Reference to the underlying Metal acceleration structure used as the BLAS.
+ * @return const MTL_Ptr<MTL::AccelerationStructure>& Reference to the
+ * underlying Metal acceleration structure used as the BLAS.
  */
 const MTL_Ptr<MTL::AccelerationStructure> &Render_Packet_AABB::get_as() const {
   return m_blas;
 }
 
 /**
- * @brief Retrieve the instance function index identifying the geometry's intersection function.
+ * @brief Retrieve the instance function index identifying the geometry's
+ * intersection function.
  *
- * @return NS::UInteger The instance/interaction function index used to select the geometry's intersection shader.
+ * @return NS::UInteger The instance/interaction function index used to select
+ * the geometry's intersection shader.
  */
 const NS::UInteger Render_Packet_AABB::get_ifn_idx() const { return m_ifn_idx; }
 
 /**
- * @brief Builds a Metal primitive BLAS descriptor and uploads the provided AABB.
+ * @brief Builds a Metal primitive BLAS descriptor and uploads the provided
+ * AABB.
  *
- * Constructs and stores a PrimitiveAccelerationStructureDescriptor for the given sphere-based AABB, copies the converted Metal AABB into the GPU AABB buffer, and configures the geometry descriptor (one bounding box, opaque, intersection-function-table offset set to the Sphere index) and the acceleration structure usage to allow refitting.
+ * Constructs and stores a PrimitiveAccelerationStructureDescriptor for the
+ * given sphere-based AABB, copies the converted Metal AABB into the GPU AABB
+ * buffer, and configures the geometry descriptor (one bounding box, opaque,
+ * intersection-function-table offset set to the Sphere index) and the
+ * acceleration structure usage to allow refitting.
  *
- * @param bbox Sphere_AABB whose bounds and radius are used to create the BLAS geometry descriptor and to populate the GPU AABB buffer.
+ * @param bbox Sphere_AABB whose bounds and radius are used to create the BLAS
+ * geometry descriptor and to populate the GPU AABB buffer.
  */
 void Render_Packet_AABB::create_blas_desc(
     const CTNM::Components::Sphere_AABB &bbox) {
@@ -179,13 +199,16 @@ void Render_Packet_AABB::create_blas_desc(
 }
 
 /**
- * @brief Determines whether the acceleration structure must be refitted for a new AABB.
+ * @brief Determines whether the acceleration structure must be refitted for a
+ * new AABB.
  *
- * Compares the stored Metal AABB with the provided sphere-based AABB (converted to Metal)
- * using approximate equality; treats negligible differences as unchanged.
+ * Compares the stored Metal AABB with the provided sphere-based AABB (converted
+ * to Metal) using approximate equality; treats negligible differences as
+ * unchanged.
  *
  * @param bbox_new New sphere-based AABB to compare against the current AABB.
- * @return bool `true` if any min/max component differs beyond the comparison tolerance, `false` otherwise.
+ * @return bool `true` if any min/max component differs beyond the comparison
+ * tolerance, `false` otherwise.
  */
 bool Render_Packet_AABB::needs_refit(
     const CTNM::Components::Sphere_AABB &bbox_new) const {
@@ -203,13 +226,17 @@ bool Render_Packet_AABB::needs_refit(
 }
 
 /**
- * @brief Rebuilds and refits the bottom-level acceleration structure for the given bounding box.
+ * @brief Rebuilds and refits the bottom-level acceleration structure for the
+ * given bounding box.
  *
- * Recreates the BLAS descriptor from `bbox`, allocates a new acceleration structure, issues a refit
- * command using the existing scratch buffer, and replaces the internal BLAS if the new one is created.
+ * Recreates the BLAS descriptor from `bbox`, allocates a new acceleration
+ * structure, issues a refit command using the existing scratch buffer, and
+ * replaces the internal BLAS if the new one is created.
  *
- * @param context GPU context providing the device and command encoder used to allocate and refit the BLAS.
- * @param bbox  Sphere AABB that describes the geometry to build/refit the acceleration structure for.
+ * @param context GPU context providing the device and command encoder used to
+ * allocate and refit the BLAS.
+ * @param bbox  Sphere AABB that describes the geometry to build/refit the
+ * acceleration structure for.
  */
 void Render_Packet_AABB::refit(const GPU_Context &context,
                                const CTNM::Components::Sphere_AABB &bbox) {
@@ -238,11 +265,13 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
  *
  * Rebuilds the underlying BLAS if the provided bounding sphere differs from the
  * current one, then updates the stored transformation matrix using the given
- * transform (position/rotation/scale) without additional scaling by the AABB radius.
+ * transform (position/rotation/scale) without additional scaling by the AABB
+ * radius.
  *
- * @param bbox New bounding sphere used to determine whether a BLAS refit is required
- *             and to rebuild/refit the BLAS when needed.
- * @param transform Base transform used directly for the stored Metal transformation matrix.
+ * @param bbox New bounding sphere used to determine whether a BLAS refit is
+ * required and to rebuild/refit the BLAS when needed.
+ * @param transform Base transform used directly for the stored Metal
+ * transformation matrix.
  */
 void Render_Packet_AABB::smart_update(
     const GPU_Context &context, const CTNM::Components::Sphere_AABB &bbox,
@@ -267,9 +296,12 @@ void Render_Packet_AABB::update_transformations(
 }
 
 /**
- * @brief Returns the packed 4x3 Metal transformation matrix for this AABB instance.
+ * @brief Returns the packed 4x3 Metal transformation matrix for this AABB
+ * instance.
  *
- * @return MTL::PackedFloat4x3 The current transformation matrix where the first three columns contain rotation and scale and the fourth column contains translation, in Metal PackedFloat4x3 format.
+ * @return MTL::PackedFloat4x3 The current transformation matrix where the first
+ * three columns contain rotation and scale and the fourth column contains
+ * translation, in Metal PackedFloat4x3 format.
  */
 MTL::PackedFloat4x3 Render_Packet_AABB::get_transformations() const {
   return m_transformations;

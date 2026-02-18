@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -17,6 +18,8 @@ namespace CTNM {
 
 class Stager : public std::enable_shared_from_this<Stager> {
 private:
+  uint64_t m_ct = 0;
+
   std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>
       m_packets;
   std::vector<entt::entity> m_packets_decomissioned;
@@ -25,8 +28,8 @@ private:
   mutable std::condition_variable m_cv;
   std::atomic<int> m_inflight = 0;
 
-  // std::chrono::time_point m_tp_last = std::chrono::high_resolution_clock::now();
-  // std::chrono::duration m_dt;
+  std::chrono::time_point<std::chrono::steady_clock> m_tp_last;
+  std::chrono::duration<float> m_dt;
 
 public:
   /**
