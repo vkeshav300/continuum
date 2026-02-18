@@ -120,7 +120,7 @@ Render_Packet_AABB::Render_Packet_AABB(
   /* Create acceleration structure */
   m_blas = context.device->newAccelerationStructure(m_blas_desc.get());
 
-  context.as_cmd_enc->buildAccelerationStructure(
+  context.ce_as->buildAccelerationStructure(
       m_blas.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
 
   /* Create transformations matrix */
@@ -252,7 +252,7 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
 
   MTL_Ptr<MTL::AccelerationStructure> blas_new =
       context.device->newAccelerationStructure(m_blas_desc.get());
-  context.as_cmd_enc->refitAccelerationStructure(
+  context.ce_as->refitAccelerationStructure(
       m_blas.get(), m_blas_desc.get(), blas_new.get(), m_buff_scratch.get(), 0);
 
   if (blas_new.get())
