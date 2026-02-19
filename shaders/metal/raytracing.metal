@@ -7,15 +7,6 @@ using namespace RHI;
 using namespace GPU_Types;
 using namespace metal;
 
-struct Ray_Payload {
-  vector_float3 color;
-};
-
-struct Present_Varyings {
-  vector_float4 pos [[position]];
-  vector_float2 uv;
-};
-
 kernel void
 k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
             constant Camera &cam [[buffer(1)]],
@@ -55,7 +46,7 @@ k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
       normalize(ndc.x * right + ndc.y * up + focal * forward);
 
   raytracing::ray ray;
-  ray.origin = vector_float3(cam.pos);
+  ray.origin = vector_float3(cam.p);
   ray.direction = ray_dir;
   ray.min_distance = 0.01f;
   ray.max_distance = 1000.0f;
@@ -80,21 +71,21 @@ k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
  * f_present sets the texture of the triangle to the raytraced-renderd output.
  */
 vertex Present_Varyings v_present(uint vid [[vertex_id]]) {
-  constexpr vector_float2 pos[3] = {vector_float2(-1.0f, -1.0f),
-                                    vector_float2(3.0f, -1.0f),
-                                    vector_float2(-1.0f, 3.0f)};
+  constexpr vector_float2 p[3] = {vector_float2(-1.0f, -1.0f),
+                                  vector_float2(3.0f, -1.0f),
+                                  vector_float2(-1.0f, 3.0f)};
   constexpr vector_float2 uv[3] = {vector_float2(0.0f, 1.0f),
                                    vector_float2(2.0f, 1.0f),
                                    vector_float2(0.0f, -1.0f)};
   Present_Varyings out;
-  out.pos = vector_float4(pos[vid], 0.0f, 1.0f);
+  out.p = vector_float4(p[vid], 0.0f, 1.0f);
   out.uv = uv[vid];
   return out;
 }
 
 fragment vector_float4 f_present(Present_Varyings in [[stage_in]],
-                          texture2d<float, access::sample> src_tex
-                          [[texture(0)]]) {
+                                 texture2d<float, access::sample> src_tex
+                                 [[texture(0)]]) {
   constexpr sampler s(coord::normalized, address::clamp_to_edge,
                       filter::nearest);
   return src_tex.sample(s, in.uv);

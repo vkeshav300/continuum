@@ -21,13 +21,13 @@ namespace GPU_Types {
 struct Camera {
 #ifdef __METAL_VERSION__
 
-  float3 pos;
+  float3 p;
   float3 dir;
   float fl;
 
 #else
 
-  vec_f3 pos;
+  vec_f3 p;
   vec_f3 dir; // GPU processing is easier with point and direction
   float fl;   // Focal length
 
@@ -48,15 +48,6 @@ struct Bounding_Box {
 #endif
 };
 
-#ifdef __METAL_VERSION__
-
-struct Sphere_Bounding_Box_Intersection_Result {
-  bool accept [[accept_intersection]];
-  float dist [[distance]];
-};
-
-#endif
-
 struct Sphere {
 #ifdef __METAL_VERSION__
 
@@ -70,6 +61,24 @@ struct Sphere {
 
 #endif
 };
+
+#ifdef __METAL_VERSION__
+
+struct Sphere_Bounding_Box_Intersection_Result {
+  bool accept [[accept_intersection]];
+  float dist [[distance]];
+};
+
+struct Ray_Payload {
+  vector_float3 color;
+};
+
+struct Present_Varyings {
+  vector_float4 p [[position]];
+  vector_float2 uv;
+};
+
+#endif
 
 } // namespace GPU_Types
 } // namespace RHI
