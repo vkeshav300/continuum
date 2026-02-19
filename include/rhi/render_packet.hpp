@@ -2,6 +2,7 @@
 
 #include "../components.hpp"
 #include "gpu_context.hpp"
+#include "gpu_types.hpp"
 #include "mtl_ptr.hpp"
 
 #include <entt/entt.hpp>
@@ -31,7 +32,8 @@ public:
 
   virtual void smart_update(const GPU_Context &context,
                             const CTNM::Components::AABB &bbox,
-                            const CTNM::Components::Transform &transform) = 0;
+                            const CTNM::Components::Transform &transform,
+                            const CTNM::Components::Surface &surface) = 0;
 
   virtual bool needs_refit(const CTNM::Components::AABB &bbox) const = 0;
   virtual void refit(const GPU_Context &context,
@@ -40,6 +42,9 @@ public:
   virtual void
   update_transformations(const CTNM::Components::Transform &transform) = 0;
   virtual MTL::PackedFloat4x3 get_transformations() const = 0;
+
+  virtual void update_surface(const CTNM::Components::Surface &surface) = 0;
+  virtual GPU_Types::Surface &get_surface() const = 0;
 };
 
 class Render_Packet_AABB : public Render_Packet {
@@ -52,6 +57,7 @@ private:
 
   MTL::PackedFloat4x3 m_transformations;
   NS::UInteger m_ifn_idx;
+  mutable GPU_Types::Surface m_surface;
 
   void create_blas_desc(const CTNM::Components::AABB &bbox);
 
@@ -66,7 +72,8 @@ public:
 
   void smart_update(const GPU_Context &context,
                     const CTNM::Components::AABB &bbox,
-                    const CTNM::Components::Transform &transform) override;
+                    const CTNM::Components::Transform &transform,
+                    const CTNM::Components::Surface &surface) override;
 
   bool needs_refit(const CTNM::Components::AABB &bbox) const override;
   void refit(const GPU_Context &context,
@@ -75,6 +82,9 @@ public:
   void
   update_transformations(const CTNM::Components::Transform &transform) override;
   MTL::PackedFloat4x3 get_transformations() const override;
+
+  void update_surface(const CTNM::Components::Surface &surface) override;
+  GPU_Types::Surface &get_surface() const override;
 };
 
 } // namespace CTNM::RHI

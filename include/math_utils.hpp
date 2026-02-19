@@ -5,10 +5,13 @@ bool approx_eq(const float a, const float b);
 
 #ifdef __APPLE__
 
+#include <Metal/Metal.hpp>
 #include <simd/simd.h>
 
 using vec_f3 = vector_float3;
 using vec_f4 = vector_float4;
+
+using color = vector_float3;
 
 #endif
 

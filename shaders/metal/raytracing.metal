@@ -8,11 +8,12 @@ using namespace GPU_Types;
 using namespace metal;
 
 kernel void
-k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
-            constant Camera &cam [[buffer(1)]],
-            constant uint &has_scene [[buffer(2)]],
-            raytracing::intersection_function_table<raytracing::instancing> ift
-            [[buffer(3)]],
+k_raytracer(raytracing::intersection_function_table<raytracing::instancing> ift
+            [[buffer(0)]],
+            raytracing::instance_acceleration_structure tlas [[buffer(1)]],
+            constant Camera &cam [[buffer(2)]],
+            constant uint &has_scene [[buffer(3)]],
+            constant Surface *surfaces [[buffer(4)]],
             texture2d<float, access::write> out_tex [[texture(0)]],
             uint2 tid [[thread_position_in_grid]]) {
   /* Ensure thread is inside rendered area */
@@ -57,10 +58,15 @@ k_raytracer(raytracing::instance_acceleration_structure as [[buffer(0)]],
   raytracing::intersector<raytracing::instancing> intersector;
   intersector.assume_geometry_type(raytracing::geometry_type::bounding_box);
   const raytracing::intersection_result<raytracing::instancing> hit =
-      intersector.intersect(ray, as, ift);
+      intersector.intersect(ray, tlas, ift);
 
-  if (hit.type != raytracing::intersection_type::none)
-    color = vector_float3(1.0f, 0.8f, 0.3f);
+  if (hit.type == raytracing::intersection_type::none) {
+    out_tex.write(vector_float4(color, 1.0f), tid);
+    return;
+  }
+
+  const uint iid = hit.instance_id;
+  color = surfaces[iid].c;
 
   out_tex.write(vector_float4(color, 1.0f), tid);
 }

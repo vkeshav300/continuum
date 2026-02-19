@@ -386,7 +386,7 @@ void GPU_Interface::ensure_rt_target(const NS::UInteger width,
  * present that target to the current drawable.
  *
  * @param render_packets Map of entity -> Render_Packet describing scene
- * geometry and instances used to build the TLAS.
+ * geometry and instance_descs used to build the TLAS.
  * @param mtx Mutex that protects access to `render_packets` during rendering.
  * @param registry Entity registry used to read the active Camera component for
  * this frame.
@@ -445,15 +445,16 @@ uint8_t GPU_Interface::render(
   m_ce_comp = m_cmd_buff->computeCommandEncoder()->retain();
   m_ce_comp->setComputePipelineState(m_ps_rt.get());
   if (m_ift.get())
-    m_ce_comp->setIntersectionFunctionTable(m_ift.get(), 3);
+    m_ce_comp->setIntersectionFunctionTable(m_ift.get(), 0);
   if (m_tlas.get())
-    m_ce_comp->setAccelerationStructure(m_tlas.get(), 0);
+    m_ce_comp->setAccelerationStructure(m_tlas.get(), 1);
 
   /* Link buffers for passing data to GPU */
   const uint32_t has_scene = m_tlas.get() ? 1u : 0u;
   std::memcpy(m_buff_scene->contents(), &has_scene, sizeof(has_scene));
-  m_ce_comp->setBuffer(m_buff_cam.get(), 0, 1);
-  m_ce_comp->setBuffer(m_buff_scene.get(), 0, 2);
+  m_ce_comp->setBuffer(m_buff_cam.get(), 0, 2);
+  m_ce_comp->setBuffer(m_buff_scene.get(), 0, 3);
+  m_ce_comp->setBuffer(m_buff_surfaces.get(), 0, 4);
   m_ce_comp->setTexture(m_tex_rt.get(), 0);
 
   /* Dispatch GPU threads for raytracing pipeline */
@@ -518,47 +519,61 @@ void GPU_Interface::create_tlas(
   if (!m_ce_as.get())
     throw std::runtime_error("AS command encoder is not available");
 
-  /* Check if TLAS needs rebuild or can be refitted */
   std::vector<entt::entity> tlas_entities;
   tlas_entities.reserve(render_packets.size());
+
+  /* Check TLAS refitability and capacity */
   for (const auto &[entity, _] : render_packets)
     tlas_entities.emplace_back(entity);
+
+  const size_t instance_count = tlas_entities.size();
+
   std::sort(tlas_entities.begin(), tlas_entities.end(),
             [](const entt::entity a, const entt::entity b) {
               return static_cast<std::underlying_type_t<entt::entity>>(a) <
                      static_cast<std::underlying_type_t<entt::entity>>(b);
             });
 
-  const bool tlas_set_changed = (tlas_entities != m_tlas_entities);
+  const bool tlas_set_changed = tlas_entities != m_tlas_entities;
+  const bool tlas_set_resized = instance_count > m_tlas_capacity;
   const bool needs_rebuild = m_rebuild || !m_tlas.get() || tlas_set_changed;
 
-  /* Ensure reusable instance descriptor buffer has enough capacity. */
-  const size_t instance_count = tlas_entities.size();
-  if (!m_buff_tlas_instances.get() ||
-      instance_count > m_tlas_instance_capacity) {
+  /* Ensure instance-dependent objects have enough capacity */
+  if (tlas_set_resized) {
     const size_t grown_capacity =
-        std::max(instance_count,
-                 m_tlas_instance_capacity + (m_tlas_instance_capacity / 2) + 1);
-    m_tlas_instance_capacity = grown_capacity;
-    m_buff_tlas_instances = m_device->newBuffer(
-        m_tlas_instance_capacity *
-            sizeof(MTL::AccelerationStructureInstanceDescriptor),
-        MTL::ResourceStorageModeShared);
+        std::max(instance_count, m_tlas_capacity + (m_tlas_capacity / 2) + 1);
+    m_tlas_capacity = grown_capacity;
   }
 
-  MTL::AccelerationStructureInstanceDescriptor *instances =
-      reinterpret_cast<MTL::AccelerationStructureInstanceDescriptor *>(
+  if (!m_buff_tlas_instances.get() || tlas_set_resized)
+    m_buff_tlas_instances = m_device->newBuffer(
+        m_tlas_capacity * sizeof(MTL::AccelerationStructureInstanceDescriptor),
+        MTL::ResourceStorageModeShared);
+
+  if (!m_buff_surfaces.get() || tlas_set_resized)
+    m_buff_surfaces =
+        m_device->newBuffer(m_tlas_capacity * sizeof(GPU_Types::Surface),
+                            MTL::ResourceStorageModeShared);
+
+  m_blas_h.clear();
+  m_blas_h.reserve(instance_count);
+
+  /* Create instance-dependent objects */
+  auto *instance_descs =
+      static_cast<MTL::AccelerationStructureInstanceDescriptor *>(
           m_buff_tlas_instances->contents());
+  auto *surfaces =
+      static_cast<GPU_Types::Surface *>(m_buff_surfaces->contents());
+  size_t iid = 0;
 
-  m_tlas_blas_handles.clear();
-  m_tlas_blas_handles.reserve(instance_count);
-
-  size_t idx = 0;
   for (const auto entity : tlas_entities) {
     const auto &packet = render_packets.at(entity);
-    MTL::AccelerationStructureInstanceDescriptor &asi_desc = instances[idx];
-    m_tlas_blas_handles.emplace_back(packet->get_as().get());
-    asi_desc.accelerationStructureIndex = idx++;
+    m_blas_h.emplace_back(packet->get_as().get());
+    surfaces[iid] = packet->get_surface();
+
+    MTL::AccelerationStructureInstanceDescriptor &asi_desc =
+        instance_descs[iid];
+    asi_desc.accelerationStructureIndex = iid++;
     asi_desc.transformationMatrix = packet->get_transformations();
     asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
     asi_desc.mask = 0xFF;
@@ -572,12 +587,11 @@ void GPU_Interface::create_tlas(
   m_tlas_desc->setInstanceDescriptorBuffer(m_buff_tlas_instances.get());
   m_tlas_desc->setInstanceDescriptorStride(
       sizeof(MTL::AccelerationStructureInstanceDescriptor));
-  m_tlas_desc->setInstanceCount(idx);
+  m_tlas_desc->setInstanceCount(iid);
   m_tlas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
-  if (!m_tlas_blas_handles.empty()) {
+  if (!m_blas_h.empty()) {
     NS::Array *blas_array = NS::Array::array(
-        reinterpret_cast<NS::Object **>(m_tlas_blas_handles.data()),
-        m_tlas_blas_handles.size());
+        reinterpret_cast<NS::Object **>(m_blas_h.data()), m_blas_h.size());
     m_tlas_desc->setInstancedAccelerationStructures(blas_array);
   }
 
@@ -591,6 +605,7 @@ void GPU_Interface::create_tlas(
         m_device->newBuffer(scratch_size, MTL::ResourceStorageModePrivate);
   }
 
+  /* Rebuild / refit TLAS */
   if (needs_rebuild) {
     m_tlas.smart_release();
     m_tlas =

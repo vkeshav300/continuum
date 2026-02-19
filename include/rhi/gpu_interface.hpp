@@ -54,6 +54,7 @@ private:
   MTL_Ptr<MTL::Buffer> m_buff_scene = nullptr;
   MTL_Ptr<MTL::Buffer> m_buff_tlas_instances = nullptr;
   MTL_Ptr<MTL::Buffer> m_buff_scratch = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_surfaces = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
   MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function
@@ -69,10 +70,10 @@ private:
 
   MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
   MTL_Ptr<MTL::InstanceAccelerationStructureDescriptor> m_tlas_desc = nullptr;
-  std::vector<MTL::AccelerationStructure *> m_tlas_blas_handles;
+  std::vector<MTL::AccelerationStructure *> m_blas_h;
   std::vector<entt::entity> m_tlas_entities;
   bool m_rebuild = true;
-  size_t m_tlas_instance_capacity = 0;
+  size_t m_tlas_capacity = 0;
 
   void mtl_load();
   void mtl_create_buffs();

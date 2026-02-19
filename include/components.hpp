@@ -15,7 +15,11 @@ struct Physics {
 };
 
 struct AABB {
-  float r = 1.0f;
+  float r = 1.0f; // Radius
+};
+
+struct Surface {
+  color c = {0.0f, 0.0f, 255.0f};
 };
 
 struct Camera {
