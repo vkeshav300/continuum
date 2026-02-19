@@ -433,7 +433,7 @@ uint8_t GPU_Interface::render(
         camera_view.front()); // First object with camera component is camera
 
   GPU_Types::Camera gpu_cam;
-  gpu_cam.pos = cam.p;
+  gpu_cam.p = cam.p;
   gpu_cam.dir = cam.fp - cam.p;
   gpu_cam.dir = approx_eq(magnitude(gpu_cam.dir), 0) ? vec_f3{0.0f, 0.0f, 1.0f}
                                                      : normalize(gpu_cam.dir);
@@ -518,6 +518,7 @@ void GPU_Interface::create_tlas(
   if (!m_ce_as.get())
     throw std::runtime_error("AS command encoder is not available");
 
+  /* Check if TLAS needs rebuild or can be refitted */
   std::vector<entt::entity> tlas_entities;
   tlas_entities.reserve(render_packets.size());
   for (const auto &[entity, _] : render_packets)
@@ -533,13 +534,13 @@ void GPU_Interface::create_tlas(
 
   /* Ensure reusable instance descriptor buffer has enough capacity. */
   const size_t instance_count = tlas_entities.size();
-  if (!m_tlas_instances_buff.get() ||
+  if (!m_buff_tlas_instances.get() ||
       instance_count > m_tlas_instance_capacity) {
     const size_t grown_capacity =
         std::max(instance_count,
                  m_tlas_instance_capacity + (m_tlas_instance_capacity / 2) + 1);
     m_tlas_instance_capacity = grown_capacity;
-    m_tlas_instances_buff = m_device->newBuffer(
+    m_buff_tlas_instances = m_device->newBuffer(
         m_tlas_instance_capacity *
             sizeof(MTL::AccelerationStructureInstanceDescriptor),
         MTL::ResourceStorageModeShared);
@@ -547,7 +548,7 @@ void GPU_Interface::create_tlas(
 
   MTL::AccelerationStructureInstanceDescriptor *instances =
       reinterpret_cast<MTL::AccelerationStructureInstanceDescriptor *>(
-          m_tlas_instances_buff->contents());
+          m_buff_tlas_instances->contents());
 
   m_tlas_blas_handles.clear();
   m_tlas_blas_handles.reserve(instance_count);
@@ -568,7 +569,7 @@ void GPU_Interface::create_tlas(
   if (!m_tlas_desc.get())
     m_tlas_desc = MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
 
-  m_tlas_desc->setInstanceDescriptorBuffer(m_tlas_instances_buff.get());
+  m_tlas_desc->setInstanceDescriptorBuffer(m_buff_tlas_instances.get());
   m_tlas_desc->setInstanceDescriptorStride(
       sizeof(MTL::AccelerationStructureInstanceDescriptor));
   m_tlas_desc->setInstanceCount(idx);
@@ -585,9 +586,8 @@ void GPU_Interface::create_tlas(
   const NS::UInteger scratch_size = needs_rebuild
                                         ? sizes.buildScratchBufferSize
                                         : sizes.refitScratchBufferSize;
-  if (!m_tlas_scratch_buff.get() ||
-      m_tlas_scratch_buff->length() < scratch_size) {
-    m_tlas_scratch_buff =
+  if (!m_buff_scratch.get() || m_buff_scratch->length() < scratch_size) {
+    m_buff_scratch =
         m_device->newBuffer(scratch_size, MTL::ResourceStorageModePrivate);
   }
 
@@ -596,20 +596,19 @@ void GPU_Interface::create_tlas(
     m_tlas =
         m_device->newAccelerationStructure(sizes.accelerationStructureSize);
     m_ce_as->buildAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
-                                        m_tlas_scratch_buff.get(), 0);
+                                        m_buff_scratch.get(), 0);
     m_rebuild = false;
     m_tlas_entities = std::move(tlas_entities);
   } else {
     if (sizes.accelerationStructureSize <= m_tlas->size()) {
       m_ce_as->refitAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
-                                          nullptr,
-                                          m_tlas_scratch_buff.get(), 0);
+                                          nullptr, m_buff_scratch.get(), 0);
     } else {
       MTL_Ptr<MTL::AccelerationStructure> tlas_new =
           m_device->newAccelerationStructure(sizes.accelerationStructureSize);
       m_ce_as->refitAccelerationStructure(m_tlas.get(), m_tlas_desc.get(),
-                                          tlas_new.get(),
-                                          m_tlas_scratch_buff.get(), 0);
+                                          tlas_new.get(), m_buff_scratch.get(),
+                                          0);
 
       if (tlas_new.get())
         m_tlas = std::move(tlas_new);

@@ -37,26 +37,23 @@ private:
   /* Metal */
   MTL_Ptr<NS::AutoreleasePool> m_pool_full =
       nullptr; // Full-scope autorelease pool
-  MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
-  MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
 
   MTL_Ptr<MTL::Device> m_device = nullptr;
   MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
   MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
+
+  MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
+  MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
+  MTL_Ptr<MTL::Texture> m_tex_rt = nullptr;
+
   MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_ce_as = nullptr;
   MTL_Ptr<MTL::ComputeCommandEncoder> m_ce_comp = nullptr;
   MTL_Ptr<MTL::RenderCommandEncoder> m_ce_rndr = nullptr;
+
   MTL_Ptr<MTL::Buffer> m_buff_cam = nullptr;
   MTL_Ptr<MTL::Buffer> m_buff_scene = nullptr;
-  MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
-  MTL_Ptr<MTL::Texture> m_tex_rt = nullptr;
-  MTL_Ptr<MTL::InstanceAccelerationStructureDescriptor> m_tlas_desc = nullptr;
-  MTL_Ptr<MTL::Buffer> m_tlas_instances_buff = nullptr;
-  MTL_Ptr<MTL::Buffer> m_tlas_scratch_buff = nullptr;
-  bool m_rebuild = true;
-  size_t m_tlas_instance_capacity = 0;
-  std::vector<MTL::AccelerationStructure *> m_tlas_blas_handles;
-  std::vector<entt::entity> m_tlas_entities;
+  MTL_Ptr<MTL::Buffer> m_buff_tlas_instances = nullptr;
+  MTL_Ptr<MTL::Buffer> m_buff_scratch = nullptr;
 
   MTL_Ptr<MTL::Library> m_lib = nullptr;
   MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function
@@ -65,9 +62,17 @@ private:
   MTL_Ptr<MTL::Function> m_fn_i_sphere =
       nullptr; // Sphere intersection function
   MTL_Ptr<MTL::FunctionHandle> m_fnh_i_sphere = nullptr;
+
   MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr; // Raytracing pipeline
   MTL_Ptr<MTL::RenderPipelineState> m_ps_present = nullptr;
   MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
+
+  MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
+  MTL_Ptr<MTL::InstanceAccelerationStructureDescriptor> m_tlas_desc = nullptr;
+  std::vector<MTL::AccelerationStructure *> m_tlas_blas_handles;
+  std::vector<entt::entity> m_tlas_entities;
+  bool m_rebuild = true;
+  size_t m_tlas_instance_capacity = 0;
 
   void mtl_load();
   void mtl_create_buffs();
