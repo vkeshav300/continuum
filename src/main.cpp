@@ -18,11 +18,19 @@ int main(int argc, char *argv[]) {
   registry.emplace<CTNM::Components::Transform>(en1);
   registry.emplace<CTNM::Components::AABB>(en1);
   registry.emplace<CTNM::Components::Physics>(en1, vec_f3{0.5f, 0.5f, 0.5f});
+  registry.emplace<CTNM::Components::Surface>(en1);
 
   entt::entity en2 = registry.create();
   registry.emplace<CTNM::Components::Transform>(en2, vec_f3{3.0f, -0.5f, 0.0f});
   registry.emplace<CTNM::Components::AABB>(en2);
   registry.emplace<CTNM::Components::Physics>(en2, vec_f3{0.0f, -0.5f, 0.0f});
+  registry.emplace<CTNM::Components::Surface>(en2, vec_f3{255.0f, 0.0f, 0.0f});
+
+  entt::entity en3 = registry.create();
+  registry.emplace<CTNM::Components::Transform>(en3, vec_f3{3.0f, -0.5f, 0.0f});
+  registry.emplace<CTNM::Components::AABB>(en3);
+  registry.emplace<CTNM::Components::Surface>(en3,
+                                              vec_f3{155.0f, 0.0f, 155.0f});
 
   entt::entity cam = registry.create();
   registry.emplace<CTNM::Components::Camera>(cam);

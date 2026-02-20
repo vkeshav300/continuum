@@ -36,7 +36,8 @@ Stager::~Stager() {}
  */
 void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
   const auto entities =
-      registry.view<Components::AABB, Components::Transform>();
+      registry
+          .view<Components::AABB, Components::Transform, Components::Surface>();
 
   /* Calculate dt (time since last staging) */
   const auto now = std::chrono::steady_clock::now();
@@ -47,8 +48,10 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
 
   /* Update entities and create render packets */
   for (const auto &e : entities) {
-    const auto &[bbox, transform] =
-        registry.get<Components::AABB, Components::Transform>(e);
+    const auto &[bbox, transform, surface] =
+        registry
+            .get<Components::AABB, Components::Transform, Components::Surface>(
+                e);
 
     const std::lock_guard<std::mutex> lock(m_mtx);
 
@@ -62,7 +65,7 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
 
     if (m_packets.find(e) !=
         m_packets.end()) { // For entities that already have associated packets
-      m_packets[e]->smart_update(context, bbox, transform);
+      m_packets[e]->smart_update(context, bbox, transform, surface);
     } else { // For new entities
       m_packets[e] =
           std::make_unique<RHI::Render_Packet_AABB>(context, bbox, transform);

@@ -2,6 +2,7 @@
 #include "components.hpp"
 #include "math_utils.hpp"
 #include "rhi/gpu_context.hpp"
+#include "rhi/gpu_types.hpp"
 #include "rhi/mtl_ptr.hpp"
 
 #include <cstring>
@@ -77,6 +78,11 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
 }
 
+static inline CTNM::RHI::GPU_Types::Surface
+to_gpu_surface(const CTNM::Components::Surface &surface) {
+  return CTNM::RHI::GPU_Types::Surface{surface.c};
+}
+
 namespace CTNM::RHI {
 
 /**
@@ -103,7 +109,8 @@ Render_Packet::~Render_Packet() = default;
  */
 Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::AABB &bbox,
-    const CTNM::Components::Transform &transform) {
+    const CTNM::Components::Transform &transform,
+    const CTNM::Components::Surface &surface) {
   /* Create bounding box buffer */
   m_buff_aabb = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
                                           MTL::ResourceStorageModeShared);
@@ -120,11 +127,12 @@ Render_Packet_AABB::Render_Packet_AABB(
   /* Create acceleration structure */
   m_blas = context.device->newAccelerationStructure(m_blas_desc.get());
 
-  context.ce_as->buildAccelerationStructure(
-      m_blas.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
+  context.ce_as->buildAccelerationStructure(m_blas.get(), m_blas_desc.get(),
+                                            m_buff_scratch.get(), 0);
 
-  /* Create transformations matrix */
+  /* Update member data */
   m_transformations = to_mtl_transformations_matrix(transform);
+  m_surface = to_gpu_surface(surface);
 }
 
 /**
@@ -251,19 +259,20 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
   }
 
   if (m_blas.get() && sizes.accelerationStructureSize <= m_blas->size()) {
-    context.ce_as->refitAccelerationStructure(
-        m_blas.get(), m_blas_desc.get(), nullptr, m_buff_scratch.get(), 0);
+    context.ce_as->refitAccelerationStructure(m_blas.get(), m_blas_desc.get(),
+                                              nullptr, m_buff_scratch.get(), 0);
   } else {
     MTL_Ptr<MTL::AccelerationStructure> blas_new =
-        context.device->newAccelerationStructure(sizes.accelerationStructureSize);
+        context.device->newAccelerationStructure(
+            sizes.accelerationStructureSize);
 
     if (m_blas.get()) {
       context.ce_as->refitAccelerationStructure(m_blas.get(), m_blas_desc.get(),
                                                 blas_new.get(),
                                                 m_buff_scratch.get(), 0);
     } else {
-      context.ce_as->buildAccelerationStructure(blas_new.get(), m_blas_desc.get(),
-                                                m_buff_scratch.get(), 0);
+      context.ce_as->buildAccelerationStructure(
+          blas_new.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
     }
 
     if (blas_new.get())
@@ -286,11 +295,13 @@ void Render_Packet_AABB::refit(const GPU_Context &context,
  */
 void Render_Packet_AABB::smart_update(
     const GPU_Context &context, const CTNM::Components::AABB &bbox,
-    const CTNM::Components::Transform &transform) {
+    const CTNM::Components::Transform &transform,
+    const CTNM::Components::Surface &surface) {
   if (needs_refit(bbox))
     refit(context, bbox);
 
   update_transformations(transform);
+  update_surface(surface);
 }
 
 /**
@@ -316,6 +327,15 @@ void Render_Packet_AABB::update_transformations(
  */
 MTL::PackedFloat4x3 Render_Packet_AABB::get_transformations() const {
   return m_transformations;
+}
+
+void Render_Packet_AABB::update_surface(
+    const CTNM::Components::Surface &surface) {
+  m_surface = {surface.c};
+}
+
+const GPU_Types::Surface &Render_Packet_AABB::get_surface() const {
+  return m_surface;
 }
 
 } // namespace CTNM::RHI
