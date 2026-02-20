@@ -86,7 +86,7 @@ struct Ray_Payload {
 };
 
 struct Present_Varyings {
-  vector_float4 p [[position]];
+  float4 p [[position]];
   vector_float2 uv;
 };
 

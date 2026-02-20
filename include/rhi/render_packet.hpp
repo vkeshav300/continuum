@@ -13,12 +13,6 @@
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>
 
-static inline MTL::AxisAlignedBoundingBox
-to_mtl_aabb(const CTNM::Components::AABB &bbox);
-
-static inline MTL::PackedFloat4x3
-to_mtl_transformations_matrix(const CTNM::Components::Transform &transform);
-
 namespace CTNM::RHI {
 
 enum IFN_IDX : NS::UInteger { Sphere = 0 };
@@ -44,7 +38,7 @@ public:
   virtual MTL::PackedFloat4x3 get_transformations() const = 0;
 
   virtual void update_surface(const CTNM::Components::Surface &surface) = 0;
-  virtual GPU_Types::Surface &get_surface() const = 0;
+  virtual const GPU_Types::Surface &get_surface() const = 0;
 };
 
 class Render_Packet_AABB : public Render_Packet {
@@ -57,14 +51,15 @@ private:
 
   MTL::PackedFloat4x3 m_transformations;
   NS::UInteger m_ifn_idx;
-  mutable GPU_Types::Surface m_surface;
+  GPU_Types::Surface m_surface;
 
   void create_blas_desc(const CTNM::Components::AABB &bbox);
 
 public:
   Render_Packet_AABB(const GPU_Context &context,
                      const CTNM::Components::AABB &bbox,
-                     const CTNM::Components::Transform &transform);
+                     const CTNM::Components::Transform &transform,
+                     const CTNM::Components::Surface &surface);
   ~Render_Packet_AABB();
 
   const MTL_Ptr<MTL::AccelerationStructure> &get_as() const override;
@@ -84,7 +79,7 @@ public:
   MTL::PackedFloat4x3 get_transformations() const override;
 
   void update_surface(const CTNM::Components::Surface &surface) override;
-  GPU_Types::Surface &get_surface() const override;
+  const GPU_Types::Surface &get_surface() const override;
 };
 
 } // namespace CTNM::RHI

@@ -20,40 +20,40 @@ k_raytracer(raytracing::intersection_function_table<raytracing::instancing> ift
   if (tid.x >= out_tex.get_width() || tid.y >= out_tex.get_height())
     return;
 
-  vector_float3 color =
-      vector_float3(0.0f, 0.0f, 0.0f); // Void = black by default
-  const vector_float2 uv =
-      (vector_float2(tid) + 0.5f) /
-      vector_float2(out_tex.get_width(), out_tex.get_height());
-  vector_float2 ndc = vector_float2(uv.x * 2.0f - 1.0f, 1.0f - uv.y * 2.0f);
+  float3 color = float3(0.0f, 0.0f, 0.0f); // Void = black by default
+  const float2 uv =
+      (float2(tid) + 0.5f) / float2(out_tex.get_width(), out_tex.get_height());
+  float2 ndc = float2(uv.x * 2.0f - 1.0f, 1.0f - uv.y * 2.0f);
   const float aspect = float(out_tex.get_width()) / float(out_tex.get_height());
   ndc.x *= aspect;
 
   /* Factor in camera direction */
-  vector_float3 forward = normalize(vector_float3(cam.dir));
-  if (all(forward == vector_float3(0.0f)))
-    forward = vector_float3(0.0f, 0.0f, 1.0f);
+  float3 forward = normalize(float3(cam.dir));
+  if (all(forward == float3(0.0f)))
+    forward = float3(0.0f, 0.0f, 1.0f);
 
-  vector_float3 world_up = vector_float3(0.0f, 1.0f, 0.0f);
+  float3 world_up = float3(0.0f, 1.0f, 0.0f);
   if (fabs(dot(forward, world_up)) > 0.999f)
-    world_up = vector_float3(1.0f, 0.0f, 0.0f);
+    world_up = float3(1.0f, 0.0f, 0.0f);
 
-  vector_float3 right = normalize(cross(forward, world_up));
-  vector_float3 up = normalize(cross(right, forward));
+  float3 right = normalize(cross(forward, world_up));
+  float3 up = normalize(cross(right, forward));
 
   /* Factor in focal length (responsible for FOV) */
   const float focal = cam.fl;
-  const vector_float3 ray_dir =
+  const float3 ray_dir =
       normalize(ndc.x * right + ndc.y * up + focal * forward);
 
   raytracing::ray ray;
-  ray.origin = vector_float3(cam.p);
+  ray.origin = float3(cam.p);
   ray.direction = ray_dir;
   ray.min_distance = 0.01f;
   ray.max_distance = 1000.0f;
 
-  if (has_scene == 0u) // No renderable objects
-    out_tex.write(vector_float4(color, 1.0f), tid);
+  if (has_scene == 0u) { // No renderable objects
+    out_tex.write(float4(color, 1.0f), tid);
+    return;
+  }
 
   raytracing::intersector<raytracing::instancing> intersector;
   intersector.assume_geometry_type(raytracing::geometry_type::bounding_box);
@@ -61,14 +61,14 @@ k_raytracer(raytracing::intersection_function_table<raytracing::instancing> ift
       intersector.intersect(ray, tlas, ift);
 
   if (hit.type == raytracing::intersection_type::none) {
-    out_tex.write(vector_float4(color, 1.0f), tid);
+    out_tex.write(float4(color, 1.0f), tid);
     return;
   }
 
   const uint iid = hit.instance_id;
   color = surfaces[iid].c;
 
-  out_tex.write(vector_float4(color, 1.0f), tid);
+  out_tex.write(float4(color, 1.0f), tid);
 }
 
 /*
@@ -77,21 +77,19 @@ k_raytracer(raytracing::intersection_function_table<raytracing::instancing> ift
  * f_present sets the texture of the triangle to the raytraced-renderd output.
  */
 vertex Present_Varyings v_present(uint vid [[vertex_id]]) {
-  constexpr vector_float2 p[3] = {vector_float2(-1.0f, -1.0f),
-                                  vector_float2(3.0f, -1.0f),
-                                  vector_float2(-1.0f, 3.0f)};
-  constexpr vector_float2 uv[3] = {vector_float2(0.0f, 1.0f),
-                                   vector_float2(2.0f, 1.0f),
-                                   vector_float2(0.0f, -1.0f)};
+  constexpr float2 p[3] = {float2(-1.0f, -1.0f), float2(3.0f, -1.0f),
+                           float2(-1.0f, 3.0f)};
+  constexpr float2 uv[3] = {float2(0.0f, 1.0f), float2(2.0f, 1.0f),
+                            float2(0.0f, -1.0f)};
   Present_Varyings out;
-  out.p = vector_float4(p[vid], 0.0f, 1.0f);
+  out.p = float4(p[vid], 0.0f, 1.0f);
   out.uv = uv[vid];
   return out;
 }
 
-fragment vector_float4 f_present(Present_Varyings in [[stage_in]],
-                                 texture2d<float, access::sample> src_tex
-                                 [[texture(0)]]) {
+fragment float4 f_present(Present_Varyings in [[stage_in]],
+                          texture2d<float, access::sample> src_tex
+                          [[texture(0)]]) {
   constexpr sampler s(coord::normalized, address::clamp_to_edge,
                       filter::nearest);
   return src_tex.sample(s, in.uv);
