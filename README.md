@@ -8,7 +8,7 @@ Continuum is a hobby project I started to learn more about low-level rendering o
 ### Running
 **Requirements:**
 - Apple Silicon chip
-- MacOS which supports Metal 3
+- macOS which supports Metal 4
 
 **Instructions:**
 Clone repo and execute the following commands:

@@ -67,8 +67,8 @@ void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
         m_packets.end()) { // For entities that already have associated packets
       m_packets[e]->smart_update(context, bbox, transform, surface);
     } else { // For new entities
-      m_packets[e] =
-          std::make_unique<RHI::Render_Packet_AABB>(context, bbox, transform);
+      m_packets[e] = std::make_unique<RHI::Render_Packet_AABB>(
+          context, bbox, transform, surface);
     }
   }
 

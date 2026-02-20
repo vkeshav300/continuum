@@ -25,6 +25,15 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 # Config
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Exports data which enables some LSPs
+set(METAL_LANG_STANDARD "metal4.0" CACHE STRING
+    "Metal shading language version passed to the metal compiler")
+set(METAL_TOOLCHAIN "" CACHE STRING
+    "Optional xcrun toolchain (for example: MetalToolchain)")
+
+set(METAL_XCRUN_ARGS -sdk macosx)
+if (METAL_TOOLCHAIN)
+    set(METAL_XCRUN_ARGS --toolchain ${METAL_TOOLCHAIN} -sdk macosx)
+endif()
 
 # Find packages
 find_package(GLFW3 REQUIRED)
@@ -77,7 +86,7 @@ foreach(SHADER ${METAL_SHADERS})
     set(AIR_FILE "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.air")
     add_custom_command(
         OUTPUT ${AIR_FILE}
-        COMMAND xcrun -sdk macosx metal -std=metal3.1 -I${CMAKE_SOURCE_DIR}/include -c ${SHADER} -o ${AIR_FILE}
+        COMMAND xcrun ${METAL_XCRUN_ARGS} metal -std=${METAL_LANG_STANDARD} -I${CMAKE_SOURCE_DIR}/include -c ${SHADER} -o ${AIR_FILE}
         DEPENDS ${SHADER}
         COMMENT "Building MTL object ${AIR_FILE}" # Make it look cool :)
         VERBATIM
@@ -86,9 +95,24 @@ foreach(SHADER ${METAL_SHADERS})
 endforeach()
 
 set(METALLIB "${CMAKE_CURRENT_BINARY_DIR}/default.metallib")
+execute_process(
+    COMMAND xcrun ${METAL_XCRUN_ARGS} --find metallib
+    RESULT_VARIABLE METALLIB_FIND_RESULT
+    OUTPUT_VARIABLE METALLIB_EXECUTABLE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+if (METALLIB_FIND_RESULT EQUAL 0 AND METALLIB_EXECUTABLE)
+    set(METAL_LINK_TOOL metallib)
+else()
+    set(METAL_LINK_TOOL metal)
+    message(STATUS "metallib tool not found; using metal for metallib linking")
+endif()
+
 add_custom_command(
     OUTPUT ${METALLIB}
-    COMMAND xcrun -sdk macosx metallib ${AIR_FILES} -o ${METALLIB}
+    COMMAND xcrun ${METAL_XCRUN_ARGS} ${METAL_LINK_TOOL} ${AIR_FILES} -o ${METALLIB}
     DEPENDS ${AIR_FILES}
     COMMENT "Linking MTL library ${METALLIB}"
     VERBATIM

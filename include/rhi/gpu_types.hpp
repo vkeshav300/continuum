@@ -12,11 +12,7 @@ using namespace metal;
 
 #endif
 
-/* Nested namespace declarations only added in C++17, but Metal 3 shaders are
- * based off of C++14 */
-namespace CTNM {
-namespace RHI {
-namespace GPU_Types {
+namespace CTNM::RHI::GPU_Types {
 
 struct Camera {
 #ifdef __METAL_VERSION__
@@ -92,6 +88,4 @@ struct Present_Varyings {
 
 #endif
 
-} // namespace GPU_Types
-} // namespace RHI
-} // namespace CTNM
+} // namespace CTNM::RHI::GPU_Types
