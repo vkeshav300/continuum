@@ -44,6 +44,17 @@ GPU_Interface::GPU_Interface(const uint16_t &width, const uint16_t &height)
     : m_pool_full(NS::AutoreleasePool::alloc()->init()),
       m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()->retain()) {
+  if (!m_device.get())
+    throw std::runtime_error("Failed to create default Metal device");
+
+  if (!m_device->supportsFamily(MTL::GPUFamilyMetal4))
+    throw std::runtime_error(
+        "Metal 4 GPU family is not supported by this device/OS runtime");
+
+  if (!m_device->supportsRaytracing())
+    throw std::runtime_error(
+        "Required Metal ray tracing support is unavailable on this device");
+
   glfw_create_window(width, height);
   mtl_load();
   mtl_create_buffs();

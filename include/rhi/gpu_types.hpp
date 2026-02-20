@@ -12,7 +12,7 @@ using namespace metal;
 
 #endif
 
-/* Nested namespace declarations only added in C++17, but Metal 3 shaders are
+/* Nested namespace declarations only added in C++17, but Metal shaders are
  * based off of C++14 */
 namespace CTNM {
 namespace RHI {
