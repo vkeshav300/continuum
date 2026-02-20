@@ -38,11 +38,21 @@ public:
 };
 
 }
+/**
+ * @brief Allocate a new FunctionDescriptor instance from the private implementation class.
+ *
+ * @return MTL4::FunctionDescriptor* A newly allocated FunctionDescriptor instance, or `nullptr` if allocation fails.
+ */
 _MTL_INLINE MTL4::FunctionDescriptor* MTL4::FunctionDescriptor::alloc()
 {
     return NS::Object::alloc<MTL4::FunctionDescriptor>(_MTL_PRIVATE_CLS(MTL4FunctionDescriptor));
 }
 
+/**
+ * @brief Initializes a newly allocated FunctionDescriptor instance.
+ *
+ * @return FunctionDescriptor* Pointer to the initialized FunctionDescriptor, or `nullptr` if initialization failed.
+ */
 _MTL_INLINE MTL4::FunctionDescriptor* MTL4::FunctionDescriptor::init()
 {
     return NS::Object::init<MTL4::FunctionDescriptor>();

@@ -44,21 +44,41 @@ public:
 };
 
 }
+/**
+ * @brief Return the device associated with this function handle.
+ *
+ * @return MTL::Device* Pointer to the device associated with this function handle.
+ */
 _MTL_INLINE MTL::Device* MTL::FunctionHandle::device() const
 {
     return Object::sendMessage<MTL::Device*>(this, _MTL_PRIVATE_SEL(device));
 }
 
+/**
+ * @brief Retrieves the function's type within the Metal API.
+ *
+ * @return MTL::FunctionType The function's type (for example: vertex, fragment, kernel).
+ */
 _MTL_INLINE MTL::FunctionType MTL::FunctionHandle::functionType() const
 {
     return Object::sendMessage<MTL::FunctionType>(this, _MTL_PRIVATE_SEL(functionType));
 }
 
+/**
+ * @brief Gets the GPU resource identifier associated with this function handle.
+ *
+ * @return MTL::ResourceID The GPU-side resource identifier for the function.
+ */
 _MTL_INLINE MTL::ResourceID MTL::FunctionHandle::gpuResourceID() const
 {
     return Object::sendMessage<MTL::ResourceID>(this, _MTL_PRIVATE_SEL(gpuResourceID));
 }
 
+/**
+ * @brief Retrieve the name of the function represented by this FunctionHandle.
+ *
+ * @return NS::String* The function's name.
+ */
 _MTL_INLINE NS::String* MTL::FunctionHandle::name() const
 {
     return Object::sendMessage<NS::String*>(this, _MTL_PRIVATE_SEL(name));

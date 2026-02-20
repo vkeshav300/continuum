@@ -26,6 +26,12 @@
 
 namespace MTL
 {
+/**
+ * @brief Represents Metal data types used for shader and resource metadata.
+ *
+ * Values enumerate scalar, vector, matrix, texture, sampler, pointer, pipeline, acceleration-structure,
+ * and other specialized formats and types used by Metal for reflection and API interoperability.
+ */
 _MTL_ENUM(NS::UInteger, DataType) {
     DataTypeNone = 0,
     DataTypeStruct = 1,

@@ -53,37 +53,76 @@ public:
 };
 
 }
+/**
+ * @brief Registers a handler block that will be invoked when the drawable is presented.
+ *
+ * @param block A block invoked with the presented `MTL::Drawable*` when the drawable has been presented.
+ */
 _MTL_INLINE void MTL::Drawable::addPresentedHandler(const MTL::DrawablePresentedHandler block)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(addPresentedHandler_), block);
 }
 
+/**
+ * @brief Registers a C++ callable to be invoked when this drawable is presented.
+ *
+ * The provided callable will be called with this drawable as its sole argument
+ * when the drawable is presented by the system.
+ *
+ * @param function Callable invoked on presentation; signature must be
+ * `void(MTL::Drawable*)`. The callable is copied/stored for later invocation.
+ */
 _MTL_INLINE void MTL::Drawable::addPresentedHandler(const MTL::DrawablePresentedHandlerFunction& function)
 {
     __block DrawablePresentedHandlerFunction blockFunction = function;
     addPresentedHandler(^(Drawable* pDrawable) { blockFunction(pDrawable); });
 }
 
+/**
+ * @brief Retrieves the unique identifier for this drawable.
+ *
+ * @return NS::UInteger The drawable's identifier.
+ */
 _MTL_INLINE NS::UInteger MTL::Drawable::drawableID() const
 {
     return Object::sendMessage<NS::UInteger>(this, _MTL_PRIVATE_SEL(drawableID));
 }
 
+/**
+ * @brief Schedules the drawable to be presented to the display at the next appropriate time.
+ *
+ * This enqueues the drawable for presentation; the actual presentation time is determined by the system.
+ */
 _MTL_INLINE void MTL::Drawable::present()
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(present));
 }
 
+/**
+ * @brief Schedules the drawable to be presented after at least the specified time interval.
+ *
+ * @param duration Time interval in seconds to wait before the drawable is eligible for presentation.
+ */
 _MTL_INLINE void MTL::Drawable::presentAfterMinimumDuration(CFTimeInterval duration)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(presentAfterMinimumDuration_), duration);
 }
 
+/**
+ * @brief Schedules the drawable to be presented at a specific system presentation time.
+ *
+ * @param presentationTime The absolute host time (in seconds) at which the drawable should be presented.
+ */
 _MTL_INLINE void MTL::Drawable::presentAtTime(CFTimeInterval presentationTime)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(presentAtTime_), presentationTime);
 }
 
+/**
+ * @brief Returns the system timestamp when the drawable was presented.
+ *
+ * @return CFTimeInterval The presentation time, in seconds, at which the drawable was presented.
+ */
 _MTL_INLINE CFTimeInterval MTL::Drawable::presentedTime() const
 {
     return Object::sendMessage<CFTimeInterval>(this, _MTL_PRIVATE_SEL(presentedTime));

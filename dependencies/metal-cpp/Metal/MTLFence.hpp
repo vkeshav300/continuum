@@ -39,11 +39,23 @@ public:
 };
 
 }
+/**
+ * @brief Retrieve the device associated with this fence.
+ *
+ * @return MTL::Device* Pointer to the device associated with this fence.
+ */
 _MTL_INLINE MTL::Device* MTL::Fence::device() const
 {
     return Object::sendMessage<MTL::Device*>(this, _MTL_PRIVATE_SEL(device));
 }
 
+/**
+ * @brief Fetches the label assigned to the fence.
+ *
+ * Returns the label string associated with this Fence, or nullptr if no label has been set.
+ *
+ * @return NS::String* The fence's label, or nullptr when unset.
+ */
 _MTL_INLINE NS::String* MTL::Fence::label() const
 {
     return Object::sendMessage<NS::String*>(this, _MTL_PRIVATE_SEL(label));

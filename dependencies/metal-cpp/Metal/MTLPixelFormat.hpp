@@ -27,6 +27,15 @@
 
 namespace MTL
 {
+/**
+ * @brief Specifies pixel format identifiers for Metal resource textures and render targets.
+ *
+ * This enumeration lists concrete pixel formats — color (unorm/snorm/uint/sint), integer,
+ * floating-point, packed, compressed (BC/ETC/PVRTC/ASTC), and depth/stencil formats —
+ * plus device-specialized variants and an Unspecialized sentinel.
+ *
+ * The enumerator values correspond to Metal's MTLPixelFormat constants.
+ */
 _MTL_ENUM(NS::UInteger, PixelFormat) {
     PixelFormatInvalid = 0,
     PixelFormatA8Unorm = 1,

@@ -31,6 +31,41 @@ namespace MTL
 {
 using IOCompressionContext=void*;
 
+/**
+ * @brief Status values returned by IOFlushAndDestroyCompressionContext.
+ *
+ * Represents whether flushing and destruction of a compression context completed successfully.
+ */
+ 
+/**
+ * @brief Returns the recommended default chunk size for compression contexts.
+ *
+ * @return size_t Default chunk size in bytes to use when creating a compression context.
+ */
+
+/**
+ * @brief Creates a new compression context for writing compressed data to the given path.
+ *
+ * @param path Filesystem path or destination identifier where compressed output will be written.
+ * @param type Compression method to use.
+ * @param chunkSize Chunk size in bytes to use for internal buffering; use 0 to accept the default.
+ * @return IOCompressionContext A new compression context on success, or `nullptr` if creation is unavailable or fails.
+ */
+
+/**
+ * @brief Appends a block of input data to an existing compression context.
+ *
+ * @param context Compression context returned by IOCreateCompressionContext.
+ * @param data Pointer to the input bytes to append.
+ * @param size Number of bytes at `data` to append.
+ */
+
+/**
+ * @brief Flushes any pending compressed data and destroys the compression context.
+ *
+ * @param context Compression context to flush and destroy.
+ * @return IOCompressionStatus `IOCompressionStatusComplete` if flushing and destruction succeeded, `IOCompressionStatusError` otherwise.
+ */
 _MTL_ENUM(NS::Integer, IOCompressionStatus) {
     IOCompressionStatusComplete = 0,
     IOCompressionStatusError = 1,

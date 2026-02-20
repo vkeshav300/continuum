@@ -55,31 +55,63 @@ public:
 };
 
 }
+/**
+ * @brief Allocate a new StitchedFunctionDescriptor instance.
+ *
+ * The returned object is freshly allocated and not initialized; call `init()` before use.
+ *
+ * @return StitchedFunctionDescriptor* A newly allocated StitchedFunctionDescriptor instance.
+ */
 _MTL_INLINE MTL4::StitchedFunctionDescriptor* MTL4::StitchedFunctionDescriptor::alloc()
 {
     return NS::Object::alloc<MTL4::StitchedFunctionDescriptor>(_MTL_PRIVATE_CLS(MTL4StitchedFunctionDescriptor));
 }
 
+/**
+ * @brief Retrieve the function descriptors contained in this stitched function descriptor.
+ *
+ * @return NS::Array* Array of `MTL4::FunctionDescriptor` objects that are part of the stitch.
+ */
 _MTL_INLINE NS::Array* MTL4::StitchedFunctionDescriptor::functionDescriptors() const
 {
     return Object::sendMessage<NS::Array*>(this, _MTL_PRIVATE_SEL(functionDescriptors));
 }
 
+/**
+ * @brief Retrieves the function stitching graph associated with this descriptor.
+ *
+ * @return MTL::FunctionStitchingGraph* Pointer to the function stitching graph for this descriptor, or `nullptr` if none is set.
+ */
 _MTL_INLINE MTL::FunctionStitchingGraph* MTL4::StitchedFunctionDescriptor::functionGraph() const
 {
     return Object::sendMessage<MTL::FunctionStitchingGraph*>(this, _MTL_PRIVATE_SEL(functionGraph));
 }
 
+/**
+ * @brief Initializes the stitched function descriptor instance.
+ *
+ * @return StitchedFunctionDescriptor* Pointer to the initialized `StitchedFunctionDescriptor` instance.
+ */
 _MTL_INLINE MTL4::StitchedFunctionDescriptor* MTL4::StitchedFunctionDescriptor::init()
 {
     return NS::Object::init<MTL4::StitchedFunctionDescriptor>();
 }
 
+/**
+ * @brief Sets the array of function descriptors that define the functions to be stitched.
+ *
+ * @param functionDescriptors An `NS::Array` containing `FunctionDescriptor` objects describing the functions to include in the stitched function.
+ */
 _MTL_INLINE void MTL4::StitchedFunctionDescriptor::setFunctionDescriptors(const NS::Array* functionDescriptors)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setFunctionDescriptors_), functionDescriptors);
 }
 
+/**
+ * @brief Assigns the function stitching graph associated with this descriptor.
+ *
+ * @param functionGraph The function stitching graph to associate with the descriptor.
+ */
 _MTL_INLINE void MTL4::StitchedFunctionDescriptor::setFunctionGraph(const MTL::FunctionStitchingGraph* functionGraph)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setFunctionGraph_), functionGraph);

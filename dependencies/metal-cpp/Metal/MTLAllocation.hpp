@@ -34,6 +34,11 @@ public:
 };
 
 }
+/**
+ * @brief Retrieve the total number of bytes allocated for this Allocation.
+ *
+ * @return NS::UInteger Total allocated size in bytes.
+ */
 _MTL_INLINE NS::UInteger MTL::Allocation::allocatedSize() const
 {
     return Object::sendMessage<NS::UInteger>(this, _MTL_PRIVATE_SEL(allocatedSize));

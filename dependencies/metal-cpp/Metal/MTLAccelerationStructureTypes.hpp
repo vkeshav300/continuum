@@ -122,7 +122,12 @@ namespace MTL4
 
 struct BufferRange
 {
-    BufferRange() = default;
+    /**
+ * @brief Default-constructs a BufferRange.
+ *
+ * The `bufferAddress` and `length` members are default-initialized.
+ */
+BufferRange() = default;
     BufferRange(uint64_t bufferAddress);
     BufferRange(uint64_t bufferAddress, uint64_t length);
 
@@ -258,7 +263,12 @@ _MTL_INLINE float& MTL::PackedFloatQuaternion::operator[](int idx)
     return elements[idx];
 }
 
-//-------------------------------------------------------------------------------------------------------------------------------------------------------------
+/**
+ * @brief Access a quaternion component by index.
+ *
+ * @param idx Component index: 0 -> x, 1 -> y, 2 -> z, 3 -> w.
+ * @return const float& Reference to the component at the given index.
+ */
 
 _MTL_INLINE const float& MTL::PackedFloatQuaternion::operator[](int idx) const
 {
@@ -283,10 +293,16 @@ _MTL_INLINE MTL4::BufferRange::BufferRange(uint64_t bufferAddress, uint64_t leng
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+/**
+ * @brief Create a BufferRange for the specified start address and length.
+ *
+ * @param bufferAddress Starting address of the buffer range.
+ * @param length Length of the range in bytes.
+ * @return MTL4::BufferRange A BufferRange representing the contiguous range at the given address and length.
+ */
 _MTL_INLINE MTL4::BufferRange MTL4::BufferRange::Make(uint64_t bufferAddress, uint64_t length)
 {
     return MTL4::BufferRange(bufferAddress, length);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-

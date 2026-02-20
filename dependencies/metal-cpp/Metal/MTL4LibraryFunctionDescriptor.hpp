@@ -55,31 +55,65 @@ public:
 };
 
 }
+/**
+ * @brief Allocate a new LibraryFunctionDescriptor instance.
+ *
+ * Allocates a new, uninitialized LibraryFunctionDescriptor object backed by the
+ * private MTL4LibraryFunctionDescriptor class.
+ *
+ * @return LibraryFunctionDescriptor* Pointer to the newly allocated descriptor.
+ *         The returned object must be initialized by calling init().
+ */
 _MTL_INLINE MTL4::LibraryFunctionDescriptor* MTL4::LibraryFunctionDescriptor::alloc()
 {
     return NS::Object::alloc<MTL4::LibraryFunctionDescriptor>(_MTL_PRIVATE_CLS(MTL4LibraryFunctionDescriptor));
 }
 
+/**
+ * @brief Initializes a LibraryFunctionDescriptor instance.
+ *
+ * @return LibraryFunctionDescriptor* The initialized object, or `nullptr` if initialization fails.
+ */
 _MTL_INLINE MTL4::LibraryFunctionDescriptor* MTL4::LibraryFunctionDescriptor::init()
 {
     return NS::Object::init<MTL4::LibraryFunctionDescriptor>();
 }
 
+/**
+ * @brief Accesses the library associated with this function descriptor.
+ *
+ * @return MTL::Library* The associated library object, or `nullptr` if no library is set.
+ */
 _MTL_INLINE MTL::Library* MTL4::LibraryFunctionDescriptor::library() const
 {
     return Object::sendMessage<MTL::Library*>(this, _MTL_PRIVATE_SEL(library));
 }
 
+/**
+ * @brief Returns the name of the library function descriptor.
+ *
+ * @return NS::String* The descriptor's name.
+ */
 _MTL_INLINE NS::String* MTL4::LibraryFunctionDescriptor::name() const
 {
     return Object::sendMessage<NS::String*>(this, _MTL_PRIVATE_SEL(name));
 }
 
+/**
+ * @brief Associates this function descriptor with a Metal library.
+ *
+ * @param library The Metal library to associate with the descriptor; may be nullptr to clear the association.
+ */
 _MTL_INLINE void MTL4::LibraryFunctionDescriptor::setLibrary(const MTL::Library* library)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setLibrary_), library);
 }
 
+/**
+ * @brief Set the function descriptor's name.
+ *
+ * @param name The name to assign to this descriptor.
+ */
 _MTL_INLINE void MTL4::LibraryFunctionDescriptor::setName(const NS::String* name)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setName_), name);

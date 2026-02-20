@@ -39,11 +39,21 @@ public:
 
 }
 
+/**
+ * @brief Returns the Metal function's type.
+ *
+ * @return MTL::FunctionType The function's type (for example: vertex, fragment, or kernel).
+ */
 _MTL_INLINE MTL::FunctionType MTL4::BinaryFunction::functionType() const
 {
     return Object::sendMessage<MTL::FunctionType>(this, _MTL_PRIVATE_SEL(functionType));
 }
 
+/**
+ * @brief Retrieves the name of this binary function.
+ *
+ * @return NS::String* The function's name as an NSString pointer.
+ */
 _MTL_INLINE NS::String* MTL4::BinaryFunction::name() const
 {
     return Object::sendMessage<NS::String*>(this, _MTL_PRIVATE_SEL(name));

@@ -46,16 +46,33 @@ public:
 };
 
 }
+/**
+ * @brief Retrieves the GPU end timestamp for this commit.
+ *
+ * @return CFTimeInterval The GPU end time for the commit, in seconds. 
+ */
 _MTL_INLINE CFTimeInterval MTL4::CommitFeedback::GPUEndTime() const
 {
     return Object::sendMessage<CFTimeInterval>(this, _MTL_PRIVATE_SEL(GPUEndTime));
 }
 
+/**
+ * @brief Retrieve the GPU start time for the commit.
+ *
+ * @return CFTimeInterval The GPU start time for the associated commit, in seconds.
+ */
 _MTL_INLINE CFTimeInterval MTL4::CommitFeedback::GPUStartTime() const
 {
     return Object::sendMessage<CFTimeInterval>(this, _MTL_PRIVATE_SEL(GPUStartTime));
 }
 
+/**
+ * @brief Retrieves the error associated with the commit, if any.
+ *
+ * Returns the error object produced by this commit operation when a failure occurred.
+ *
+ * @return NS::Error* The error object for the commit, or `nullptr` if no error occurred.
+ */
 _MTL_INLINE NS::Error* MTL4::CommitFeedback::error() const
 {
     return Object::sendMessage<NS::Error*>(this, _MTL_PRIVATE_SEL(error));

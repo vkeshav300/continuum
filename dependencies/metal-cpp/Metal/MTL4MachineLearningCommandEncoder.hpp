@@ -50,16 +50,33 @@ public:
 };
 
 }
+/**
+ * @brief Dispatches the configured machine learning network using the provided intermediate heap.
+ *
+ * Dispatches the encoder's current machine learning pipeline to execute, using the given heap for intermediate resources required by the network.
+ *
+ * @param heap Pointer to an MTL::Heap that supplies intermediate storage for the dispatched network; may be nullptr if no intermediates are required.
+ */
 _MTL_INLINE void MTL4::MachineLearningCommandEncoder::dispatchNetwork(const MTL::Heap* heap)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(dispatchNetworkWithIntermediatesHeap_), heap);
 }
 
+/**
+ * @brief Sets the argument table used by the machine learning command encoder.
+ *
+ * @param argumentTable Argument table that provides resource bindings for the network dispatch.
+ */
 _MTL_INLINE void MTL4::MachineLearningCommandEncoder::setArgumentTable(const MTL4::ArgumentTable* argumentTable)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setArgumentTable_), argumentTable);
 }
 
+/**
+ * @brief Sets the machine learning pipeline state used by this encoder.
+ *
+ * @param pipelineState Pipeline state that configures the machine learning kernels and their resource/binding layout for subsequent dispatches.
+ */
 _MTL_INLINE void MTL4::MachineLearningCommandEncoder::setPipelineState(const MTL4::MachineLearningPipelineState* pipelineState)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setPipelineState_), pipelineState);

@@ -59,41 +59,86 @@ public:
 };
 
 }
+/**
+ * @brief Allocates a new SpecializedFunctionDescriptor.
+ *
+ * @return MTL4::SpecializedFunctionDescriptor* A newly allocated descriptor, or `nullptr` if allocation fails.
+ */
 _MTL_INLINE MTL4::SpecializedFunctionDescriptor* MTL4::SpecializedFunctionDescriptor::alloc()
 {
     return NS::Object::alloc<MTL4::SpecializedFunctionDescriptor>(_MTL_PRIVATE_CLS(MTL4SpecializedFunctionDescriptor));
 }
 
+/**
+ * @brief Retrieves the function constant values associated with this specialized descriptor.
+ *
+ * @return MTL::FunctionConstantValues* The associated `FunctionConstantValues` object, or `nullptr` if none is set.
+ */
 _MTL_INLINE MTL::FunctionConstantValues* MTL4::SpecializedFunctionDescriptor::constantValues() const
 {
     return Object::sendMessage<MTL::FunctionConstantValues*>(this, _MTL_PRIVATE_SEL(constantValues));
 }
 
+/**
+ * @brief Returns the underlying function descriptor associated with this specialized descriptor.
+ *
+ * @return MTL4::FunctionDescriptor* Pointer to the associated FunctionDescriptor, or `nullptr` if none is set.
+ */
 _MTL_INLINE MTL4::FunctionDescriptor* MTL4::SpecializedFunctionDescriptor::functionDescriptor() const
 {
     return Object::sendMessage<MTL4::FunctionDescriptor*>(this, _MTL_PRIVATE_SEL(functionDescriptor));
 }
 
+/**
+ * @brief Initializes the specialized function descriptor instance.
+ *
+ * Performs the standard NS::Object initialization for the receiver.
+ *
+ * @return SpecializedFunctionDescriptor* The initialized object, or `nullptr` if initialization failed.
+ */
 _MTL_INLINE MTL4::SpecializedFunctionDescriptor* MTL4::SpecializedFunctionDescriptor::init()
 {
     return NS::Object::init<MTL4::SpecializedFunctionDescriptor>();
 }
 
+/**
+ * @brief Sets the function constant values used to create the specialized function.
+ *
+ * @param constantValues Pointer to an MTL::FunctionConstantValues to associate with this descriptor.
+ */
 _MTL_INLINE void MTL4::SpecializedFunctionDescriptor::setConstantValues(const MTL::FunctionConstantValues* constantValues)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setConstantValues_), constantValues);
 }
 
+/**
+ * @brief Associate a base function descriptor with this specialized descriptor.
+ *
+ * Associates the provided MTL4::FunctionDescriptor as the underlying (base)
+ * function descriptor that this SpecializedFunctionDescriptor specializes.
+ *
+ * @param functionDescriptor Pointer to the base FunctionDescriptor to associate; may be `nullptr` to clear the association.
+ */
 _MTL_INLINE void MTL4::SpecializedFunctionDescriptor::setFunctionDescriptor(const MTL4::FunctionDescriptor* functionDescriptor)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setFunctionDescriptor_), functionDescriptor);
 }
 
+/**
+ * @brief Sets the specialized name used to identify this specialized function descriptor.
+ *
+ * @param specializedName The name to assign to the specialized function descriptor.
+ */
 _MTL_INLINE void MTL4::SpecializedFunctionDescriptor::setSpecializedName(const NS::String* specializedName)
 {
     Object::sendMessage<void>(this, _MTL_PRIVATE_SEL(setSpecializedName_), specializedName);
 }
 
+/**
+ * @brief Retrieves the descriptor's specialized name.
+ *
+ * @return NS::String* The specialized name associated with this descriptor, or `nullptr` if no name has been set.
+ */
 _MTL_INLINE NS::String* MTL4::SpecializedFunctionDescriptor::specializedName() const
 {
     return Object::sendMessage<NS::String*>(this, _MTL_PRIVATE_SEL(specializedName));

@@ -63,6 +63,13 @@
 namespace MTL::Private
 {
     template <typename _Type>
+    /**
+     * @brief Load a symbol by name from the process's dynamic symbol table and return its value.
+     *
+     * @tparam _Type The expected symbol type (e.g., pointer or reference type).
+     * @param pSymbol Null-terminated name of the symbol to look up.
+     * @return _Type const The symbol value if found, `nullptr` otherwise.
+     */
     inline _Type const LoadSymbol(const char* pSymbol)
     {
         const _Type* pAddress = static_cast<_Type*>(dlsym(RTLD_DEFAULT, pSymbol));
