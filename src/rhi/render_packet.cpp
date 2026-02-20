@@ -78,6 +78,11 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
 }
 
+static inline CTNM::RHI::GPU_Types::Surface
+to_gpu_surface(const CTNM::Components::Surface &surface) {
+  return CTNM::RHI::GPU_Types::Surface{surface.c};
+}
+
 namespace CTNM::RHI {
 
 /**
@@ -104,7 +109,8 @@ Render_Packet::~Render_Packet() = default;
  */
 Render_Packet_AABB::Render_Packet_AABB(
     const GPU_Context &context, const CTNM::Components::AABB &bbox,
-    const CTNM::Components::Transform &transform) {
+    const CTNM::Components::Transform &transform,
+    const CTNM::Components::Surface &surface) {
   /* Create bounding box buffer */
   m_buff_aabb = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
                                           MTL::ResourceStorageModeShared);
@@ -124,8 +130,9 @@ Render_Packet_AABB::Render_Packet_AABB(
   context.ce_as->buildAccelerationStructure(m_blas.get(), m_blas_desc.get(),
                                             m_buff_scratch.get(), 0);
 
-  /* Create transformations matrix */
+  /* Update member data */
   m_transformations = to_mtl_transformations_matrix(transform);
+  m_surface = to_gpu_surface(surface);
 }
 
 /**
@@ -327,7 +334,7 @@ void Render_Packet_AABB::update_surface(
   m_surface = {surface.c};
 }
 
-GPU_Types::Surface &Render_Packet_AABB::get_surface() const {
+const GPU_Types::Surface &Render_Packet_AABB::get_surface() const {
   return m_surface;
 }
 
