@@ -10,20 +10,20 @@
 
 namespace CTNM::RHI::Bridges {
 
-NS::Window *get_ns_window(GLFWwindow *window, CA::MetalLayer *layer) {
-  NSWindow *_window = glfwGetCocoaWindow(window);
-  _window.contentView.wantsLayer = YES;
-  _window.contentView.layer = (__bridge CALayer *)layer;
-  return (__bridge NS::Window *)_window;
+NS::Window *get_ns_win(GLFWwindow *win, CA::MetalLayer *layer) {
+  NSWindow *_win = glfwGetCocoaWindow(win);
+  _win.contentView.wantsLayer = YES;
+  _win.contentView.layer = (__bridge CALayer *)layer;
+  return (__bridge NS::Window *)_win;
 }
 
-void detach_ns_window_layer(GLFWwindow *window) {
-  NSWindow *_window = glfwGetCocoaWindow(window);
-  if (!_window || !_window.contentView)
+void detach_ns_win(GLFWwindow *win) {
+  NSWindow *_win = glfwGetCocoaWindow(win);
+  if (!_win || !_win.contentView)
     return;
 
-  _window.contentView.layer = nil;
-  _window.contentView.wantsLayer = NO;
+  _win.contentView.layer = nil;
+  _win.contentView.wantsLayer = NO;
 }
 
 } // namespace CTNM::RHI::Bridges

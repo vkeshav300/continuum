@@ -9,13 +9,13 @@ namespace CTNM {
 Window::Window(const FB_Size &fb_size) {
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   if (!glfwInit())
-    throw std::runtime_error("Failed: glfwInit");
+    throw std::runtime_error("Critical: glfwInit");
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_win = glfwCreateWindow(fb_size.w, fb_size.h, "Continuum", nullptr, nullptr);
   if (!m_win) {
     glfwTerminate();
-    throw std::runtime_error("Failed to create window");
+    throw std::runtime_error("Critical to create window");
   }
 
   glfwSetWindowUserPointer(m_win, this);
@@ -42,8 +42,12 @@ Window::~Window() {
   glfwTerminate();
 }
 
+GLFWwindow *Window::get_exposed_win() const { return m_win; }
+
 bool Window::should_close() const { return glfwWindowShouldClose(m_win); }
 
 void Window::poll_events() const { glfwPollEvents(); }
+
+FB_Size Window::get_fb_size() const { return m_fb_size; }
 
 } // namespace CTNM

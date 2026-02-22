@@ -14,6 +14,8 @@ public:
   Window(const FB_Size &size);
   ~Window();
 
+  GLFWwindow *get_exposed_win() const;
+
   bool should_close() const;
   void poll_events() const;
 
