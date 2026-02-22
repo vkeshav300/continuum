@@ -17,6 +17,15 @@ NS::Window *get_ns_window(GLFWwindow *window, CA::MetalLayer *layer) {
   return (__bridge NS::Window *)_window;
 }
 
+void detach_ns_window_layer(GLFWwindow *window) {
+  NSWindow *_window = glfwGetCocoaWindow(window);
+  if (!_window || !_window.contentView)
+    return;
+
+  _window.contentView.layer = nil;
+  _window.contentView.wantsLayer = NO;
+}
+
 } // namespace CTNM::RHI::Bridges
 
 #endif
