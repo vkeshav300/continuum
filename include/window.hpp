@@ -1,5 +1,7 @@
 #pragma once
 
+#include "beacon.hpp"
+
 #include <GLFW/glfw3.h>
 
 namespace CTNM {
@@ -20,10 +22,12 @@ public:
   void poll_events() const;
 
   FB_Size get_fb_size() const;
+  Beacon<FB_Size> &on_fb_resized();
 
 private:
   GLFWwindow *m_win;
   FB_Size m_fb_size;
+  Beacon<FB_Size> m_bec_fb_resized;
 
   static void cb_fb_resized(GLFWwindow *_win, const int w, const int h);
   void resize_fb(const FB_Size &fb_size);

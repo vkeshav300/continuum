@@ -1,4 +1,5 @@
 #include "window.hpp"
+#include "beacon.hpp"
 
 #include <stdexcept>
 
@@ -27,9 +28,16 @@ Window::Window(const FB_Size &fb_size) {
 
 void Window::cb_fb_resized(GLFWwindow *_win, const int w, const int h) {
   Window *win = reinterpret_cast<Window *>(glfwGetWindowUserPointer(_win));
+  if (!win)
+    return;
+
+  win->resize_fb(FB_Size{w, h});
+  win->on_fb_resized().fire(FB_Size{w, h});
 }
 
 void Window::resize_fb(const FB_Size &fb_size) { m_fb_size = fb_size; }
+
+Beacon<FB_Size> &Window::on_fb_resized() { return m_bec_fb_resized; }
 
 Window::~Window() {
   if (m_win) {
