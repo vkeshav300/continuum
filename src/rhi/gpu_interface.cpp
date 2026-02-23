@@ -200,6 +200,7 @@ uint8_t GPU_Interface::render() {
   frame.cmd_buff.smart_release();
 
   m_cmd_q->signalDrawable(frame.drawable.get());
+  frame.drawable->present();
 
   return Result::Normal;
 }
