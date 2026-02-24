@@ -7,12 +7,12 @@
 
 namespace CTNM {
 
-template <typename... Args> class Beacon {
+template <typename... Args> class Event {
 public:
   using signal_t = entt::sigh<void(Args...)>;
 
-  Beacon() = default;
-  ~Beacon() { clear(); }
+  Event() = default;
+  ~Event() { clear(); }
 
   template <auto connection, typename T> entt::connection connect(T &obj) {
     const std::lock_guard<std::mutex> lock(m_mtx);

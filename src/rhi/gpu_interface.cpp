@@ -1,5 +1,5 @@
 #include "rhi/gpu_interface.hpp"
-#include "beacon.hpp"
+#include "event.hpp"
 #include "rhi/bridges.hpp"
 #include "rhi/gpu_context.hpp"
 #include "rhi/mtl_ptr.hpp"
@@ -212,7 +212,7 @@ void GPU_Interface::render(
   frame.cmd_buff->endCommandBuffer();
   MTL_Unique<MTL4::CommitOptions> commit_opts =
       MTL4::CommitOptions::alloc()->init();
-  Beacon<uint32_t> &bec_gpu_completed = m_bec_gpu_completed;
+  Event<uint32_t> &bec_gpu_completed = m_bec_gpu_completed;
   const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
       [&frame, &bec_gpu_completed, slot](MTL4::CommitFeedback *) {
@@ -242,11 +242,11 @@ void GPU_Interface::render(
   m_bec_cpu_completed.fire(slot);
 }
 
-Beacon<uint32_t> &GPU_Interface::on_cpu_completed() {
+Event<uint32_t> &GPU_Interface::on_cpu_completed() {
   return m_bec_cpu_completed;
 }
 
-Beacon<uint32_t> &GPU_Interface::on_gpu_completed() {
+Event<uint32_t> &GPU_Interface::on_gpu_completed() {
   return m_bec_gpu_completed;
 }
 

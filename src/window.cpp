@@ -1,5 +1,5 @@
 #include "window.hpp"
-#include "beacon.hpp"
+#include "event.hpp"
 
 #include <stdexcept>
 
@@ -37,7 +37,7 @@ void Window::cb_fb_resized(GLFWwindow *_win, const int w, const int h) {
 
 void Window::resize_fb(const FB_Size &fb_size) { m_fb_size = fb_size; }
 
-Beacon<FB_Size> &Window::on_fb_resized() { return m_bec_fb_resized; }
+Event<FB_Size> &Window::on_fb_resized() { return m_bec_fb_resized; }
 
 Window::~Window() {
   if (m_win) {
