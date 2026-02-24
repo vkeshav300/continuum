@@ -165,19 +165,27 @@ void GPU_Interface::cycle_frame() {
 }
 
 GPU_Context GPU_Interface::get_gpu_context() {
-  if (!m_ce_as.exists())
-    m_ce_as = m_cmd_buff->computeCommandEncoder()->retain();
+  if (skip_frame)
+    return GPU_Context{m_slot, skip_frame, nullptr, nullptr};
 
-  return GPU_Context{m_slot, m_device, m_ce_as};
+  if (m_ce_as.exists()) {
+    MTL4::ComputeCommandEncoder *ce_as =
+        m_frame_contexts[m_slot].cmd_buff->computeCommandEncoder();
+
+    if (ce_as)
+      m_ce_as = ce_as->retain();
+  }
+
+  return GPU_Context{m_slot, skip_frame, m_device, m_ce_as};
 }
 
-uint8_t GPU_Interface::render(
+void GPU_Interface::render(
     const std::unordered_map<entt::entity, Render_Packet> &render_packets,
     std::mutex &packet_mtx) {
   Frame_Context &frame =
       m_frame_contexts[m_slot]; // Frame is already cycled when render is called
   if (skip_frame)
-    return Result::Skip;
+    return;
 
   m_rp_desc->colorAttachments()->object(0)->setTexture(
       frame.drawable->texture());
@@ -191,7 +199,7 @@ uint8_t GPU_Interface::render(
 
   if (!m_ce_rndr.exists()) {
     free_current_frame(true);
-    return Result::Skip;
+    return;
   }
 
   m_ce_rndr->setRenderPipelineState(m_ps_present.get());
@@ -232,8 +240,6 @@ uint8_t GPU_Interface::render(
   frame.drawable->present();
 
   m_bec_cpu_completed.fire(slot);
-
-  return Result::Normal;
 }
 
 Beacon<uint32_t> &GPU_Interface::on_cpu_completed() {

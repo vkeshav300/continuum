@@ -2,6 +2,7 @@
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
+#include <chrono>
 #include <mutex>
 #include <unordered_map>
 
@@ -34,6 +35,8 @@ Stager::get_render_packets() const {
 void Stager::decommission_packet(const entt::entity e) {
   const std::lock_guard<std::mutex> lock(m_mtx);
   m_packets_decommissioned.push_back(e);
+  m_inflight++;
+  m_cv.notify_one();
 }
 
 void Stager::attach_decommissioned_packets(const uint32_t frame_id) {
@@ -54,12 +57,21 @@ void Stager::clear_decommissioned_packets(const uint32_t frame_id) {
   if (it == m_frame_to_packets_decommissioned.end())
     return;
 
+  const size_t n_packets = it->second.size();
   for (const auto packet : it->second)
     m_packets.erase(packet);
 
   m_frame_to_packets_decommissioned.erase(it);
+  m_inflight -= n_packets;
+  m_cv.notify_one();
 }
 
 std::mutex &Stager::get_mutex() { return m_mtx; }
+
+void Stager::wait_until_idle() {
+  std::unique_lock<std::mutex> lock(m_mtx);
+  m_cv.wait_for(lock, std::chrono::milliseconds(IDLE_TIMEOUT),
+                [&]() { return m_inflight == 0; });
+}
 
 } // namespace CTNM

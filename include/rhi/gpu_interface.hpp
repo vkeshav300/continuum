@@ -23,11 +23,6 @@
 
 namespace CTNM::RHI {
 
-enum Result : uint8_t {
-  Normal = 0,
-  Skip = 1,
-};
-
 struct Frame_Context {
   MTL_Unique<MTL4::CommandBuffer> cmd_buff = nullptr;
   MTL_Unique<MTL4::CommandAllocator> cmd_alloc = nullptr;
@@ -44,8 +39,8 @@ public:
 
   void cycle_frame();
   GPU_Context get_gpu_context();
-  uint8_t render(const std::unordered_map<entt::entity, Render_Packet> &packets,
-                 std::mutex &packet_mtx);
+  void render(const std::unordered_map<entt::entity, Render_Packet> &packets,
+              std::mutex &packet_mtx);
 
   Beacon<uint32_t> &on_cpu_completed();
   Beacon<uint32_t> &on_gpu_completed();
@@ -61,7 +56,6 @@ private:
   MTL_Unique<CA::MetalLayer> m_layer = nullptr;
 
   MTL_Unique<MTL4::CommandQueue> m_cmd_q = nullptr;
-  MTL_Unique<MTL4::CommandBuffer> m_cmd_buff = nullptr;
 
   std::array<Frame_Context, MAX_FRAMES_INFLIGHT> m_frame_contexts;
   uint32_t m_slot = 0, m_next_frame = 0;

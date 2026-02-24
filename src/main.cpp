@@ -1,3 +1,4 @@
+#include "rhi/gpu_context.hpp"
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
 #include "window.hpp"
@@ -26,16 +27,26 @@ int main(int argc, char *argv[]) {
   while (!win->should_close()) {
     const auto frame_start = std::chrono::steady_clock::now();
     interface.cycle_frame();
+
+    CTNM::RHI::GPU_Context gpu_context = interface.get_gpu_context();
+    if (gpu_context.skip_frame) {
+      const auto elapsed = std::chrono::steady_clock::now() - frame_start;
+      if (elapsed < target_frame_time)
+        std::this_thread::sleep_for(target_frame_time - elapsed);
+
+      continue;
+    }
+
     stager.stage(interface.get_gpu_context(), reg);
-    const uint8_t result =
-        interface.render(stager.get_render_packets(), stager.get_mutex());
+    interface.render(stager.get_render_packets(), stager.get_mutex());
 
     win->poll_events();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    const auto frame_elapsed = std::chrono::steady_clock::now() - frame_start;
-    if (frame_elapsed < target_frame_time)
-      std::this_thread::sleep_for(target_frame_time - frame_elapsed);
+    const auto elapsed = std::chrono::steady_clock::now() - frame_start;
+    if (elapsed < target_frame_time)
+      std::this_thread::sleep_for(target_frame_time - elapsed);
   }
+
+  stager.wait_until_idle();
 
   sink_on_aabb_destroy.disconnect();
   bec_on_cpu_completed.clear();
