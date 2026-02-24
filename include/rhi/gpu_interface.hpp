@@ -72,7 +72,7 @@ private:
   MTL_Shared<MTL4::ComputeCommandEncoder> m_ce_as = nullptr;
   MTL_Unique<MTL4::RenderCommandEncoder> m_ce_rndr = nullptr;
 
-  Event<uint32_t> m_bec_cpu_completed, m_bec_gpu_completed;
+  Event<uint32_t> m_ev_cpu_completed, m_ev_gpu_completed;
 
   void cb_fb_resized(const FB_Size fb_size);
 

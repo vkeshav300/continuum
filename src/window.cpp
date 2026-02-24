@@ -1,13 +1,17 @@
 #include "window.hpp"
 #include "event.hpp"
 
+#include <chrono>
 #include <stdexcept>
+#include <thread>
 
 #include <GLFW/glfw3.h>
 
 namespace CTNM {
 
-Window::Window(const FB_Size &fb_size) {
+Window::Window(const FB_Size &fb_size,
+               const std::chrono::milliseconds target_frame_len)
+    : m_target_frame_len(target_frame_len) {
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   if (!glfwInit())
     throw std::runtime_error("Critical: glfwInit");
@@ -37,7 +41,7 @@ void Window::cb_fb_resized(GLFWwindow *_win, const int w, const int h) {
 
 void Window::resize_fb(const FB_Size &fb_size) { m_fb_size = fb_size; }
 
-Event<FB_Size> &Window::on_fb_resized() { return m_bec_fb_resized; }
+Event<FB_Size> &Window::on_fb_resized() { return m_ev_fb_resized; }
 
 Window::~Window() {
   if (m_win) {
@@ -57,5 +61,15 @@ bool Window::should_close() const { return glfwWindowShouldClose(m_win); }
 void Window::poll_events() const { glfwPollEvents(); }
 
 FB_Size Window::get_fb_size() const { return m_fb_size; }
+
+void Window::start_frame() { m_frame_start = std::chrono::steady_clock::now(); }
+
+void Window::end_frame() const {
+  poll_events();
+
+  const auto elapsed = std::chrono::steady_clock::now() - m_frame_start;
+  if (elapsed < m_target_frame_len)
+    std::this_thread::sleep_for(m_target_frame_len - elapsed);
+}
 
 } // namespace CTNM

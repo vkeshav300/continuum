@@ -212,10 +212,10 @@ void GPU_Interface::render(
   frame.cmd_buff->endCommandBuffer();
   MTL_Unique<MTL4::CommitOptions> commit_opts =
       MTL4::CommitOptions::alloc()->init();
-  Event<uint32_t> &bec_gpu_completed = m_bec_gpu_completed;
+  Event<uint32_t> &ev_gpu_completed = m_ev_gpu_completed;
   const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
-      [&frame, &bec_gpu_completed, slot](MTL4::CommitFeedback *) {
+      [&frame, &ev_gpu_completed, slot](MTL4::CommitFeedback *) {
         frame.cmd_alloc->reset();
 
         std::lock_guard<std::mutex> lock(frame.mtx);
@@ -228,7 +228,7 @@ void GPU_Interface::render(
         frame.ready = true;
         frame.cv.notify_one();
 
-        bec_gpu_completed.fire(slot);
+        ev_gpu_completed.fire(slot);
       });
   commit_opts->addFeedbackHandler(cb_feedback);
 
@@ -239,15 +239,15 @@ void GPU_Interface::render(
   m_cmd_q->signalDrawable(frame.drawable.get());
   frame.drawable->present();
 
-  m_bec_cpu_completed.fire(slot);
+  m_ev_cpu_completed.fire(slot);
 }
 
 Event<uint32_t> &GPU_Interface::on_cpu_completed() {
-  return m_bec_cpu_completed;
+  return m_ev_cpu_completed;
 }
 
 Event<uint32_t> &GPU_Interface::on_gpu_completed() {
-  return m_bec_gpu_completed;
+  return m_ev_gpu_completed;
 }
 
 } // namespace CTNM::RHI
