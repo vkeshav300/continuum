@@ -25,7 +25,8 @@ int main(int argc, char *argv[]) {
 
   while (!win->should_close()) {
     const auto frame_start = std::chrono::steady_clock::now();
-    stager.stage(reg);
+    interface.cycle_frame();
+    stager.stage(interface.get_gpu_context(), reg);
     const uint8_t result =
         interface.render(stager.get_render_packets(), stager.get_mutex());
 

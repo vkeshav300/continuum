@@ -1,4 +1,5 @@
 #include "stager.hpp"
+#include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
 #include <mutex>
@@ -8,7 +9,7 @@
 
 namespace CTNM {
 
-void Stager::stage(const entt::registry &reg) {
+void Stager::stage(RHI::GPU_Context gpu_context, const entt::registry &reg) {
   const auto &renderable_entities =
       reg.view<Components::AABB, Components::Transform>();
 
@@ -19,9 +20,9 @@ void Stager::stage(const entt::registry &reg) {
 
     auto it = m_packets.find(e);
     if (it != m_packets.end())
-      it->second.update(transform);
+      it->second.update(gpu_context, transform, bbox);
     else
-      m_packets.emplace(e, transform);
+      m_packets.try_emplace(e, gpu_context, transform, bbox);
   }
 }
 

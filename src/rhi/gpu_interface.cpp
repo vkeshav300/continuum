@@ -1,6 +1,7 @@
 #include "rhi/gpu_interface.hpp"
 #include "beacon.hpp"
 #include "rhi/bridges.hpp"
+#include "rhi/gpu_context.hpp"
 #include "rhi/mtl_ptr.hpp"
 #include "rhi/render_packet.hpp"
 #include "window.hpp"
@@ -20,6 +21,11 @@
 #include <entt/entt.hpp>
 
 namespace CTNM::RHI {
+
+void GPU_Interface::cb_fb_resized(const FB_Size fb_size) {
+  if (m_layer.exists())
+    m_layer->setDrawableSize(CGSizeMake(fb_size.w, fb_size.h));
+}
 
 GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     : m_win(win), m_pool_full(NS::AutoreleasePool::alloc()->init()),
@@ -101,11 +107,6 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
       MTL::StoreActionStore);
 }
 
-void GPU_Interface::cb_fb_resized(const FB_Size fb_size) {
-  if (m_layer.exists())
-    m_layer->setDrawableSize(CGSizeMake(fb_size.w, fb_size.h));
-}
-
 GPU_Interface::~GPU_Interface() {
   for (auto &frame : m_frame_contexts) { // Wait for all GPU work to complete
     std::unique_lock<std::mutex> lock(frame.mtx);
@@ -118,59 +119,78 @@ GPU_Interface::~GPU_Interface() {
   }
 }
 
-uint8_t GPU_Interface::render(
-    const std::unordered_map<entt::entity, Render_Packet> &render_packets,
-    std::mutex &packet_mtx) {
-  /* Cycle to next preparable frame */
-  const uint32_t slot = m_next_frame;
+void GPU_Interface::free_current_frame(const bool end_cmd_buff) {
+  Frame_Context &frame = m_frame_contexts[m_slot];
+  std::lock_guard<std::mutex> lock(frame.mtx);
+  if (frame.drawable.exists())
+    frame.drawable.smart_release();
+
+  if (frame.cmd_buff.exists() && end_cmd_buff)
+    frame.cmd_buff->endCommandBuffer();
+
+  if (frame.cmd_buff.exists())
+    frame.cmd_buff.smart_release();
+
+  frame.ready = true;
+  frame.cv.notify_one();
+}
+
+void GPU_Interface::cycle_frame() {
+  m_slot = m_next_frame;
   m_next_frame = (m_next_frame + 1) % MAX_FRAMES_INFLIGHT;
-  Frame_Context &frame = m_frame_contexts[slot];
+  Frame_Context &frame = m_frame_contexts[m_slot];
   {
     std::unique_lock<std::mutex> lock(frame.mtx);
     frame.cv.wait(lock, [&frame] { return frame.ready; });
-    frame.ready = false;
+    frame.ready = skip_frame = false;
   }
-  const std::function<void(bool)> free_frame([&frame](const bool end_cmd_buff) {
-    std::lock_guard<std::mutex> lock(frame.mtx);
-    if (frame.drawable.exists())
-      frame.drawable.smart_release();
-
-    if (frame.cmd_buff.exists() && end_cmd_buff)
-      frame.cmd_buff->endCommandBuffer();
-
-    if (frame.cmd_buff.exists())
-      frame.cmd_buff.smart_release();
-
-    frame.ready = true;
-    frame.cv.notify_one();
-  });
 
   if (CA::MetalDrawable *drawable = m_layer->nextDrawable())
     frame.drawable = drawable->retain();
 
   if (!frame.drawable.exists()) {
-    free_frame(false);
-    return Result::Skip;
+    free_current_frame();
+    skip_frame = true;
+    return;
   }
 
   frame.cmd_buff = m_device->newCommandBuffer();
   if (!frame.cmd_buff.exists()) {
-    free_frame(false);
-    return Result::Skip;
+    free_current_frame();
+    skip_frame = true;
+    return;
   }
 
   frame.cmd_buff->beginCommandBuffer(frame.cmd_alloc.get());
+}
+
+GPU_Context GPU_Interface::get_gpu_context() {
+  if (!m_ce_as.exists())
+    m_ce_as = m_cmd_buff->computeCommandEncoder()->retain();
+
+  return GPU_Context{m_slot, m_device, m_ce_as};
+}
+
+uint8_t GPU_Interface::render(
+    const std::unordered_map<entt::entity, Render_Packet> &render_packets,
+    std::mutex &packet_mtx) {
+  Frame_Context &frame =
+      m_frame_contexts[m_slot]; // Frame is already cycled when render is called
+  if (skip_frame)
+    return Result::Skip;
 
   m_rp_desc->colorAttachments()->object(0)->setTexture(
       frame.drawable->texture());
 
+  m_ce_as->endEncoding();
+  m_ce_as.smart_release();
   if (MTL4::RenderCommandEncoder *encoder =
           frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
     m_ce_rndr = encoder->retain();
   }
 
   if (!m_ce_rndr.exists()) {
-    free_frame(true);
+    free_current_frame(true);
     return Result::Skip;
   }
 
@@ -185,10 +205,21 @@ uint8_t GPU_Interface::render(
   MTL_Unique<MTL4::CommitOptions> commit_opts =
       MTL4::CommitOptions::alloc()->init();
   Beacon<uint32_t> &bec_gpu_completed = m_bec_gpu_completed;
+  const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
-      [&frame, free_frame, &bec_gpu_completed, slot](MTL4::CommitFeedback *) {
+      [&frame, &bec_gpu_completed, slot](MTL4::CommitFeedback *) {
         frame.cmd_alloc->reset();
-        free_frame(false);
+
+        std::lock_guard<std::mutex> lock(frame.mtx);
+        if (frame.drawable.exists())
+          frame.drawable.smart_release();
+
+        if (frame.cmd_buff.exists())
+          frame.cmd_buff.smart_release();
+
+        frame.ready = true;
+        frame.cv.notify_one();
+
         bec_gpu_completed.fire(slot);
       });
   commit_opts->addFeedbackHandler(cb_feedback);

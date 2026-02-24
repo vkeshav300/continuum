@@ -2,6 +2,7 @@
 
 #include "../window.hpp"
 #include "beacon.hpp"
+#include "gpu_context.hpp"
 #include "mtl_ptr.hpp"
 #include "render_packet.hpp"
 
@@ -27,8 +28,6 @@ enum Result : uint8_t {
   Skip = 1,
 };
 
-static constexpr uint32_t MAX_FRAMES_INFLIGHT = 3;
-
 struct Frame_Context {
   MTL_Unique<MTL4::CommandBuffer> cmd_buff = nullptr;
   MTL_Unique<MTL4::CommandAllocator> cmd_alloc = nullptr;
@@ -43,6 +42,8 @@ public:
   GPU_Interface(std::shared_ptr<Window> win);
   ~GPU_Interface();
 
+  void cycle_frame();
+  GPU_Context get_gpu_context();
   uint8_t render(const std::unordered_map<entt::entity, Render_Packet> &packets,
                  std::mutex &packet_mtx);
 
@@ -56,14 +57,15 @@ private:
   MTL_Unique<NS::AutoreleasePool> m_pool_full = nullptr,
                                   m_pool_limited = nullptr;
 
-  MTL_Unique<MTL::Device> m_device = nullptr;
+  MTL_Shared<MTL::Device> m_device = nullptr;
   MTL_Unique<CA::MetalLayer> m_layer = nullptr;
 
   MTL_Unique<MTL4::CommandQueue> m_cmd_q = nullptr;
-  MTL_Unique<MTL4::CommandBuffer> m_cmd_buf = nullptr;
+  MTL_Unique<MTL4::CommandBuffer> m_cmd_buff = nullptr;
 
   std::array<Frame_Context, MAX_FRAMES_INFLIGHT> m_frame_contexts;
-  uint32_t m_next_frame = 0;
+  uint32_t m_slot = 0, m_next_frame = 0;
+  bool skip_frame = false;
 
   MTL_Unique<MTL::Library> m_lib = nullptr;
   std::unordered_map<std::string, MTL_Unique<MTL::Function>> m_fns;
@@ -73,11 +75,14 @@ private:
 
   MTL_Unique<MTL4::ArgumentTable> m_argt_rndr = nullptr;
 
+  MTL_Shared<MTL4::ComputeCommandEncoder> m_ce_as = nullptr;
   MTL_Unique<MTL4::RenderCommandEncoder> m_ce_rndr = nullptr;
 
   Beacon<uint32_t> m_bec_cpu_completed, m_bec_gpu_completed;
 
   void cb_fb_resized(const FB_Size fb_size);
+
+  void free_current_frame(const bool end_cmd_buff = false);
 };
 
 }; // namespace CTNM::RHI

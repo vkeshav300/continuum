@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
 #include <mutex>
@@ -14,7 +15,7 @@ public:
   Stager() = default;
   ~Stager() = default;
 
-  void stage(const entt::registry &reg);
+  void stage(RHI::GPU_Context gpu_context, const entt::registry &reg);
 
   const std::unordered_map<entt::entity, RHI::Render_Packet> &
   get_render_packets() const;
