@@ -19,3 +19,6 @@ cmake ..
 make
 ```
 When you are ready to run, enter `./continuum`.
+
+### Optimization
+Continuum currently prioritizes smaller memory usage over processing optimization.

@@ -74,15 +74,33 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
     as_geom_desc->setOpaque(true);
     as_geom_desc->setIntersectionFunctionTableOffset(0); // 0 = Sphere
 
+    MTL_Unique<MTL::AccelerationStructureBoundingBoxGeometryDescriptor>
+        as_geom_sizes_desc =
+            MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()
+                ->init();
+    as_geom_sizes_desc->setBoundingBoxBuffer(as_context.buff_aabb.get());
+    as_geom_sizes_desc->setBoundingBoxCount(1);
+    as_geom_sizes_desc->setOpaque(true);
+    as_geom_sizes_desc->setIntersectionFunctionTableOffset(0);
+
     MTL4::AccelerationStructureBoundingBoxGeometryDescriptor *as_geom_descs[] =
         {as_geom_desc.get()};
+    MTL::AccelerationStructureBoundingBoxGeometryDescriptor
+        *as_geom_sizes_descs[] = {as_geom_sizes_desc.get()};
     NS::Array *as_geom_desc_array =
         NS::Array::array(reinterpret_cast<NS::Object **>(as_geom_descs), 1);
+    NS::Array *as_geom_sizes_desc_array = NS::Array::array(
+        reinterpret_cast<NS::Object **>(as_geom_sizes_descs), 1);
 
     as_context.as_desc =
         MTL4::PrimitiveAccelerationStructureDescriptor::alloc()->init();
     as_context.as_desc->setGeometryDescriptors(as_geom_desc_array);
     as_context.as_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+
+    as_context.as_sizes_desc =
+        MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
+    as_context.as_sizes_desc->setGeometryDescriptors(as_geom_sizes_desc_array);
+    as_context.as_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   }
 
   update(gpu_context, transform, bbox);
@@ -98,8 +116,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
 
   AS_Context &as_context = m_as_contexts[gpu_context.slot];
   const MTL::AxisAlignedBoundingBox aabb = get_mtl_aabb(bbox);
-  const bool refit =
-      !as_context.has_aabb || needs_refit(as_context.aabb, aabb);
+  const bool refit = !as_context.has_aabb || needs_refit(as_context.aabb, aabb);
   as_context.aabb = aabb;
   as_context.has_aabb = true;
   std::memcpy(as_context.buff_aabb->contents(), &as_context.aabb,
@@ -107,7 +124,8 @@ void Render_Packet::update(GPU_Context &gpu_context,
 
   if (!as_context.as_built) {
     const MTL::AccelerationStructureSizes sizes =
-        gpu_context.device->accelerationStructureSizes(as_context.as_desc.get());
+        gpu_context.device->accelerationStructureSizes(
+            as_context.as_sizes_desc.get());
     as_context.buff_scratch = gpu_context.device->newBuffer(
         sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
     as_context.as = gpu_context.device->newAccelerationStructure(
@@ -119,16 +137,15 @@ void Render_Packet::update(GPU_Context &gpu_context,
                                 sizes.buildScratchBufferSize));
     as_context.as_built = true;
     return;
-  }
-
-  if (refit) {
-    MTL::AccelerationStructureSizes sizes =
-        gpu_context.device->accelerationStructureSizes(as_context.as_desc.get());
-    if (as_context.buff_scratch->length() < sizes.refitScratchBufferSize)
+  } else if (refit) {
+    const MTL::AccelerationStructureSizes sizes =
+        gpu_context.device->accelerationStructureSizes(
+            as_context.as_sizes_desc.get());
+    if (as_context.buff_scratch->length() != sizes.refitScratchBufferSize)
       as_context.buff_scratch = gpu_context.device->newBuffer(
           sizes.refitScratchBufferSize, MTL::ResourceStorageModePrivate);
 
-    MTL4::BufferRange buff_r_scratch = MTL4::BufferRange::Make(
+    const MTL4::BufferRange buff_r_scratch = MTL4::BufferRange::Make(
         as_context.buff_scratch->gpuAddress(), sizes.refitScratchBufferSize);
 
     if (sizes.accelerationStructureSize == as_context.as->size())
@@ -157,6 +174,15 @@ bool Render_Packet::needs_refit(
            current_aabb.max.x == new_aabb.max.x &&
            current_aabb.max.y == new_aabb.max.y &&
            current_aabb.max.z == new_aabb.max.z);
+}
+
+const MTL::AccelerationStructure *
+Render_Packet::get_as(const uint32_t slot) const {
+  return m_as_contexts[slot].as.get();
+}
+
+const MTL::PackedFloat4x3 &Render_Packet::get_transform() const {
+  return m_transform;
 }
 
 } // namespace CTNM::RHI

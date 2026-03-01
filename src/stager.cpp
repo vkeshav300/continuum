@@ -10,21 +10,30 @@
 
 namespace CTNM {
 
-void Stager::stage(RHI::GPU_Context gpu_context, const entt::registry &reg) {
+void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
   const auto &renderable_entities =
       reg.view<Components::AABB, Components::Transform>();
 
   std::lock_guard<std::mutex> lock(m_mtx);
+  bool packet_added = false;
   for (const auto e : renderable_entities) {
     const auto &[bbox, transform] =
         reg.get<Components::AABB, Components::Transform>(e);
 
-    auto it = m_packets.find(e);
+    const auto it = m_packets.find(e);
     if (it != m_packets.end())
       it->second.update(gpu_context, transform, bbox);
-    else
-      m_packets.try_emplace(e, gpu_context, transform, bbox);
+    else {
+      const bool result =
+          m_packets.try_emplace(e, gpu_context, transform, bbox).second;
+
+      if (!packet_added && result)
+        packet_added = true;
+    }
   }
+
+  if (packet_added)
+    m_revision.fetch_add(1);
 }
 
 const std::unordered_map<entt::entity, RHI::Render_Packet> &
@@ -58,13 +67,19 @@ void Stager::clear_decommissioned_packets(const uint32_t frame_id) {
     return;
 
   const size_t n_packets = it->second.size();
+  if (n_packets == 0)
+    return;
+
   for (const auto packet : it->second)
     m_packets.erase(packet);
 
   m_frame_to_packets_decommissioned.erase(it);
   m_inflight -= n_packets;
+  m_revision.fetch_add(1);
   m_cv.notify_one();
 }
+
+uint64_t Stager::get_revision() const { return m_revision.load(); }
 
 std::mutex &Stager::get_mutex() { return m_mtx; }
 

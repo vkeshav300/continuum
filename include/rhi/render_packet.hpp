@@ -4,6 +4,7 @@
 #include "gpu_context.hpp"
 
 #include <array>
+#include <cstdint>
 
 #include <Metal/MTL4AccelerationStructure.hpp>
 #include <Metal/Metal.hpp>
@@ -17,13 +18,17 @@ static inline MTL::PackedFloat4x3
 get_mtl_transform(const CTNM::Components::Transform &transform);
 
 struct AS_Context {
+  MTL::AxisAlignedBoundingBox aabb{};
+
   MTL_Unique<MTL::Buffer> buff_aabb = nullptr;
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
-  MTL_Unique<MTL::AccelerationStructure> as = nullptr;
+
+  MTL_Unique<MTL::PrimitiveAccelerationStructureDescriptor> as_sizes_desc =
+      nullptr;
   MTL_Unique<MTL4::PrimitiveAccelerationStructureDescriptor> as_desc = nullptr;
-  MTL::AxisAlignedBoundingBox aabb{};
-  bool has_aabb = false;
-  bool as_built = false;
+  MTL_Unique<MTL::AccelerationStructure> as = nullptr;
+
+  bool as_built = false, has_aabb = false;
 };
 
 class Render_Packet {
@@ -37,6 +42,9 @@ public:
               const Components::AABB &bbox);
   bool needs_refit(const MTL::AxisAlignedBoundingBox &current_aabb,
                    const MTL::AxisAlignedBoundingBox &new_aabb) const;
+
+  const MTL::AccelerationStructure *get_as(const uint32_t slot) const;
+  const MTL::PackedFloat4x3 &get_transform() const;
 
 private:
   MTL::PackedFloat4x3 m_transform;

@@ -12,6 +12,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 #include <AppKit/AppKit.hpp>
 #include <Foundation/Foundation.hpp>
@@ -28,7 +29,7 @@ void GPU_Interface::cb_fb_resized(const FB_Size fb_size) {
 }
 
 GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
-    : m_win(win), m_pool_full(NS::AutoreleasePool::alloc()->init()),
+    : m_win(std::move(win)), m_pool_full(NS::AutoreleasePool::alloc()->init()),
       m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()->retain()) {
   if (!m_device.exists())
@@ -62,6 +63,22 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.cmd_alloc = m_device->newCommandAllocator();
     if (!frame.cmd_alloc.exists())
       throw std::runtime_error("Failed: MTL::Device::newCommandAllocator()");
+
+    frame.tlas_desc =
+        MTL4::InstanceAccelerationStructureDescriptor::alloc()->init();
+    frame.tlas_desc->setInstanceDescriptorType(
+        MTL::AccelerationStructureInstanceDescriptorTypeIndirect);
+    frame.tlas_desc->setInstanceDescriptorStride(
+        sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
+    frame.tlas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+
+    frame.tlas_sizes_desc =
+        MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
+    frame.tlas_sizes_desc->setInstanceDescriptorType(
+        MTL::AccelerationStructureInstanceDescriptorTypeIndirect);
+    frame.tlas_sizes_desc->setInstanceDescriptorStride(
+        sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
+    frame.tlas_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   }
 
   m_lib = m_device->newDefaultLibrary();
@@ -168,11 +185,9 @@ GPU_Context GPU_Interface::get_gpu_context() {
   if (skip_frame)
     return GPU_Context{m_slot, skip_frame, nullptr, nullptr};
 
-  if (m_ce_as.exists()) {
-    MTL4::ComputeCommandEncoder *ce_as =
-        m_frame_contexts[m_slot].cmd_buff->computeCommandEncoder();
-
-    if (ce_as)
+  if (!m_ce_as.exists()) {
+    if (MTL4::ComputeCommandEncoder *ce_as =
+            m_frame_contexts[m_slot].cmd_buff->computeCommandEncoder())
       m_ce_as = ce_as->retain();
   }
 
@@ -181,17 +196,99 @@ GPU_Context GPU_Interface::get_gpu_context() {
 
 void GPU_Interface::render(
     const std::unordered_map<entt::entity, Render_Packet> &render_packets,
-    std::mutex &packet_mtx) {
-  Frame_Context &frame =
-      m_frame_contexts[m_slot]; // Frame is already cycled when render is called
+    std::mutex &packet_mtx, const uint64_t packet_revision) {
   if (skip_frame)
     return;
 
-  m_rp_desc->colorAttachments()->object(0)->setTexture(
-      frame.drawable->texture());
+  Frame_Context &frame =
+      m_frame_contexts[m_slot]; // Frame is already cycled when render is called
+
+  const bool rebuild_tlas =
+      packet_revision != frame.revision || !frame.tlas_built;
+  frame.revision = packet_revision;
+  size_t n_packets;
+
+  {
+    const std::lock_guard<std::mutex> lock(packet_mtx);
+    n_packets = render_packets.size();
+    if (rebuild_tlas)
+      frame.buff_as_instances = m_device->newBuffer(
+          n_packets *
+              sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor),
+          MTL::ResourceStorageModeShared);
+
+    MTL::IndirectAccelerationStructureInstanceDescriptor *asi_descs =
+        static_cast<MTL::IndirectAccelerationStructureInstanceDescriptor *>(
+            frame.buff_as_instances->contents());
+
+    size_t iid = 0;
+    for (const auto &[_, packet] : render_packets) {
+      MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
+          asi_descs[iid];
+      asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
+      asi_desc.userID = iid++;
+      asi_desc.transformationMatrix = packet.get_transform();
+      asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
+      asi_desc.mask = 0xFF;
+      asi_desc.intersectionFunctionTableOffset = 0;
+    }
+  }
+
+  frame.tlas_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_desc->setInstanceDescriptorBuffer(MTL4::BufferRange::Make(
+      frame.buff_as_instances->gpuAddress(),
+      n_packets *
+          sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
+
+  /* For some reason Metal doesn't accept MTL4 descriptors for as sizing, so
+   * legacy descriptor must be used in addtion */
+  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_sizes_desc->setInstanceDescriptorBuffer(
+      frame.buff_as_instances.get());
+  frame.tlas_sizes_desc->setInstanceDescriptorBufferOffset(0);
+
+  const MTL::AccelerationStructureSizes sizes =
+      m_device->accelerationStructureSizes(frame.tlas_sizes_desc.get());
+
+  if (rebuild_tlas) {
+    frame.buff_scratch = m_device->newBuffer(sizes.buildScratchBufferSize,
+                                             MTL::ResourceStorageModePrivate);
+    frame.tlas =
+        m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+    m_ce_as->buildAccelerationStructure(
+        frame.tlas.get(), frame.tlas_desc.get(),
+        MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
+                                sizes.buildScratchBufferSize));
+    frame.tlas_built = true;
+  } else {
+    if (frame.buff_scratch->length() != sizes.refitScratchBufferSize)
+      frame.buff_scratch = m_device->newBuffer(sizes.refitScratchBufferSize,
+                                               MTL::ResourceStorageModePrivate);
+
+    const MTL4::BufferRange buff_r_scratch = MTL4::BufferRange::Make(
+        frame.buff_scratch->gpuAddress(), sizes.refitScratchBufferSize);
+
+    if (frame.tlas->size() == sizes.accelerationStructureSize)
+      m_ce_as->refitAccelerationStructure(
+          frame.tlas.get(), frame.tlas_desc.get(), frame.tlas.get(),
+          buff_r_scratch); // In-place refit
+    else {
+      MTL_Unique<MTL::AccelerationStructure> tlas_new =
+          m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+      m_ce_as->refitAccelerationStructure(frame.tlas.get(),
+                                          frame.tlas_desc.get(), tlas_new.get(),
+                                          buff_r_scratch);
+
+      if (tlas_new.exists())
+        frame.tlas = std::move(tlas_new);
+    }
+  }
 
   m_ce_as->endEncoding();
   m_ce_as.smart_release();
+
+  m_rp_desc->colorAttachments()->object(0)->setTexture(
+      frame.drawable->texture());
   if (MTL4::RenderCommandEncoder *encoder =
           frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
     m_ce_rndr = encoder->retain();
