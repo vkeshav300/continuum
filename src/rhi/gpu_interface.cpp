@@ -62,6 +62,19 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   if (!m_cmd_q.exists())
     throw std::runtime_error("Failed: MTL::Device::newMTL4CommandQueue");
 
+  NS::Error *err = nullptr;
+  MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
+      MTL4::ArgumentTableDescriptor::alloc()->init();
+  argt_rt_desc->setMaxBufferBindCount(4);
+  argt_rt_desc->setMaxTextureBindCount(1);
+  argt_rt_desc->setMaxSamplerStateBindCount(0);
+
+  MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rndr_desc =
+      MTL4::ArgumentTableDescriptor::alloc()->init();
+  argt_rndr_desc->setMaxBufferBindCount(0);
+  argt_rndr_desc->setMaxTextureBindCount(1);
+  argt_rndr_desc->setMaxSamplerStateBindCount(0);
+
   for (auto &frame : m_frame_contexts) {
     frame.cmd_alloc = m_device->newCommandAllocator();
     if (!frame.cmd_alloc.exists())
@@ -95,6 +108,15 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.tex_rt_desc->setStorageMode(MTL::StorageModePrivate);
     frame.tex_rt_desc->setUsage(MTL::TextureUsageShaderRead |
                                 MTL::TextureUsageShaderWrite);
+
+    frame.argt_rt = m_device->newArgumentTable(argt_rt_desc.get(), &err);
+    if (!frame.argt_rt.exists())
+      throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rt");
+
+    frame.argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
+    if (!frame.argt_rndr.exists())
+      throw std::runtime_error(
+          "Failed: MTL::Device::newArgumentTable, rndr");
   }
 
   m_lib = m_device->newDefaultLibrary();
@@ -109,25 +131,6 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
       throw std::runtime_error(
           std::string("Failed: MTL::Library::newFunction, ") + fn_name);
   }
-
-  NS::Error *err = nullptr;
-  MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
-      MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rt_desc->setMaxBufferBindCount(4);
-  argt_rt_desc->setMaxTextureBindCount(1);
-  argt_rt_desc->setMaxSamplerStateBindCount(0);
-  m_argt_rt = m_device->newArgumentTable(argt_rt_desc.get(), &err);
-  if (!m_argt_rt.exists())
-    throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rt");
-
-  MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rndr_desc =
-      MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rndr_desc->setMaxBufferBindCount(0);
-  argt_rndr_desc->setMaxTextureBindCount(1);
-  argt_rndr_desc->setMaxSamplerStateBindCount(0);
-  m_argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
-  if (!m_argt_rndr.exists())
-    throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rndr");
 
   MTL_Unique<MTL::ComputePipelineDescriptor> ps_rt_desc =
       MTL::ComputePipelineDescriptor::alloc()->init();
@@ -395,14 +398,14 @@ void GPU_Interface::render(
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
   std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
 
-  m_argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
-  m_argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
-  m_argt_rt->setResource(
+  frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
+  frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
+  frame.argt_rt->setResource(
       m_ift.exists() ? m_ift->gpuResourceID() : MTL::ResourceID(0), 2);
-  m_argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
-                                             : MTL::ResourceID(0),
-                         3);
-  m_argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
+  frame.argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
+                                                 : MTL::ResourceID(0),
+                             3);
+  frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   if (MTL4::ComputeCommandEncoder *ce_rt =
           frame.cmd_buff->computeCommandEncoder())
@@ -412,8 +415,11 @@ void GPU_Interface::render(
     return;
   }
 
+  m_ce_rt->barrierAfterQueueStages(MTL::StageAccelerationStructure,
+                                   MTL::StageDispatch,
+                                   MTL4::VisibilityOptionDevice);
   m_ce_rt->setComputePipelineState(m_ps_rt.get());
-  m_ce_rt->setArgumentTable(m_argt_rt.get());
+  m_ce_rt->setArgumentTable(frame.argt_rt.get());
 
   const NS::UInteger tg_width = m_ps_rt->threadExecutionWidth();
   const NS::UInteger tg_height = std::max<NS::UInteger>(
@@ -434,7 +440,7 @@ void GPU_Interface::render(
       std::max<NS::UInteger>(1, drawable_tex->arrayLength()));
   m_rp_desc->colorAttachments()->object(0)->setTexture(drawable_tex);
 
-  m_argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
+  frame.argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   if (MTL4::RenderCommandEncoder *ce_rndr =
           frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
@@ -444,8 +450,10 @@ void GPU_Interface::render(
     return;
   }
 
+  m_ce_rndr->barrierAfterQueueStages(MTL::StageDispatch, MTL::StageFragment,
+                                     MTL4::VisibilityOptionDevice);
   m_ce_rndr->setRenderPipelineState(m_ps_present.get());
-  m_ce_rndr->setArgumentTable(m_argt_rndr.get(), MTL::RenderStageFragment);
+  m_ce_rndr->setArgumentTable(frame.argt_rndr.get(), MTL::RenderStageFragment);
   m_ce_rndr->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
                             NS::UInteger(3));
   m_ce_rndr->endEncoding();

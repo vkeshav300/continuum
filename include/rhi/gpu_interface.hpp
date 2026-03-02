@@ -35,6 +35,8 @@ struct Frame_Context {
 
   MTL_Unique<MTL::TextureDescriptor> tex_rt_desc = nullptr;
   MTL_Unique<MTL::Texture> tex_rt = nullptr;
+  MTL_Unique<MTL4::ArgumentTable> argt_rt = nullptr;
+  MTL_Unique<MTL4::ArgumentTable> argt_rndr = nullptr;
 
   MTL_Unique<MTL::InstanceAccelerationStructureDescriptor> tlas_sizes_desc =
       nullptr;
@@ -77,8 +79,6 @@ private:
 
   MTL_Unique<MTL4::CommandQueue> m_cmd_q = nullptr;
   MTL_Unique<MTL4::RenderPassDescriptor> m_rp_desc = nullptr;
-  MTL_Unique<MTL4::ArgumentTable> m_argt_rt = nullptr;
-  MTL_Unique<MTL4::ArgumentTable> m_argt_rndr = nullptr;
   MTL_Unique<MTL4::RenderCommandEncoder> m_ce_rndr = nullptr;
   MTL_Unique<MTL4::ComputeCommandEncoder> m_ce_rt = nullptr;
   MTL_Shared<MTL4::ComputeCommandEncoder> m_ce_as = nullptr;

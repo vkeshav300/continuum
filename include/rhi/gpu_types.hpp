@@ -35,10 +35,6 @@ struct AABB {
   gpu_vec_pf3 max;
 };
 
-struct Raytracing_Params {
-  uint has_scene;
-};
-
 struct Camera {
   gpu_vec_pf3 p;
   gpu_vec_pf3 dir;
