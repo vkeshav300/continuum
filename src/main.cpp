@@ -16,23 +16,13 @@ int main(int argc, char *argv[]) {
   entt::entity en1 = reg.create();
   reg.emplace<CTNM::Components::Transform>(en1);
   reg.emplace<CTNM::Components::AABB>(en1);
-  reg.emplace<CTNM::Components::Physics>(en1, vec_f3{0.5f, 0.5f, 0.5f});
-  reg.emplace<CTNM::Components::Surface>(en1);
 
   entt::entity en2 = reg.create();
   reg.emplace<CTNM::Components::Transform>(en2, vec_f3{3.0f, -0.5f, 0.0f});
   reg.emplace<CTNM::Components::AABB>(en2);
-  reg.emplace<CTNM::Components::Physics>(en2, vec_f3{0.0f, -0.5f, 0.0f});
-  reg.emplace<CTNM::Components::Surface>(en2, vec_f3{255.0f, 0.0f, 0.0f});
-
-  entt::entity en3 = reg.create();
-  reg.emplace<CTNM::Components::Transform>(en3, vec_f3{3.0f, -0.5f, 0.0f});
-  reg.emplace<CTNM::Components::AABB>(en3);
-  reg.emplace<CTNM::Components::Surface>(en3, vec_f3{155.0f, 0.0f, 155.0f});
 
   entt::entity cam = reg.create();
   reg.emplace<CTNM::Components::Camera>(cam);
-  reg.get<CTNM::Components::Camera>(cam).fov = 45.0f;
 
   auto sink_on_aabb_destroy = reg.on_destroy<CTNM::Components::AABB>();
   auto &ev_on_cpu_completed = interface.on_cpu_completed();
@@ -55,7 +45,7 @@ int main(int argc, char *argv[]) {
 
     stager.stage(gpu_context, reg);
     interface.render(stager.get_render_packets(), stager.get_mutex(),
-                     stager.get_revision());
+                     stager.get_revision(), reg);
 
     win->end_frame();
   }

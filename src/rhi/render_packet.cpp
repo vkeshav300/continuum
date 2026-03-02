@@ -70,6 +70,7 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
     as_geom_desc->setBoundingBoxBuffer(
         MTL4::BufferRange::Make(as_context.buff_aabb->gpuAddress(),
                                 sizeof(MTL::AxisAlignedBoundingBox)));
+    as_geom_desc->setBoundingBoxStride(sizeof(MTL::AxisAlignedBoundingBox));
     as_geom_desc->setBoundingBoxCount(1);
     as_geom_desc->setPrimitiveDataBuffer(
         MTL4::BufferRange::Make(as_context.buff_aabb->gpuAddress(),
@@ -85,6 +86,8 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
             MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()
                 ->init();
     as_geom_sizes_desc->setBoundingBoxBuffer(as_context.buff_aabb.get());
+    as_geom_sizes_desc->setBoundingBoxStride(
+        sizeof(MTL::AxisAlignedBoundingBox));
     as_geom_sizes_desc->setBoundingBoxCount(1);
     as_geom_sizes_desc->setPrimitiveDataBuffer(as_context.buff_aabb.get());
     as_geom_sizes_desc->setPrimitiveDataElementSize(

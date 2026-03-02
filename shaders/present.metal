@@ -18,7 +18,10 @@ vertex Present_Vertex_Out v_present(uint vid [[vertex_id]]) {
   return out;
 }
 
-fragment float4 f_present(Present_Vertex_Out in [[stage_in]]) {
-  const float2 uv = clamp(in.uv, float2(0.0f), float2(1.0f));
-  return float4(uv.x, uv.y, 0.25f + 0.5f * uv.x, 1.0f);
+fragment float4 f_present(Present_Vertex_Out in [[stage_in]],
+                          texture2d<float, access::sample> tex_rt
+                          [[texture(0)]]) {
+  constexpr sampler s(coord::normalized, address::clamp_to_edge,
+                      filter::nearest);
+  return tex_rt.sample(s, in.uv);
 }

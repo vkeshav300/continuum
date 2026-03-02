@@ -103,7 +103,7 @@ public:
   MTL_Shared &operator=(T *ptr) {
     if (m_ptr != ptr) {
       smart_release();
-      m_ptr = ptr;
+      m_ptr = ptr->retain();
     }
 
     return *this;

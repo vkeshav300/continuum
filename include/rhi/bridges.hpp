@@ -13,9 +13,9 @@
 
 namespace CTNM::RHI::Bridges {
 
-NS::Window *get_ns_win(GLFWwindow *win, CA::MetalLayer *layer);
+NS::View *attach_ns_win(GLFWwindow *win, CA::MetalLayer *layer);
 
-void detach_ns_win(GLFWwindow *win);
+void detach_ns_win(NS::View *metal_view);
 
 } // namespace CTNM::RHI::Bridges
 

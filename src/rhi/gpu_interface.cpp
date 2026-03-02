@@ -2,11 +2,13 @@
 #include "event.hpp"
 #include "rhi/bridges.hpp"
 #include "rhi/gpu_context.hpp"
+#include "rhi/gpu_types.hpp"
 #include "rhi/mtl_ptr.hpp"
 #include "rhi/render_packet.hpp"
 #include "window.hpp"
 
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -41,16 +43,17 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   if (!m_device->supportsRaytracing())
     throw std::runtime_error("Critical: device does not support raytracing");
 
-  m_pool_limited = NS::AutoreleasePool::alloc()->init();
+  MTL_Unique<NS::AutoreleasePool> pool_limited =
+      NS::AutoreleasePool::alloc()->init();
 
   const FB_Size fb_size = m_win->get_fb_size();
   m_layer->setDevice(m_device.get());
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  // m_layer->setFramebufferOnly(true); // Set true for deferred rendering
+  m_layer->setFramebufferOnly(true);
   m_layer->setDrawableSize(CGSizeMake(fb_size.w, fb_size.h));
-  if (NS::Window *ns_win =
-          Bridges::get_ns_win(m_win->get_exposed_win(), m_layer.get())) {
-    m_win_ns = ns_win->retain();
+  if (NS::View *metal_view =
+          Bridges::attach_ns_win(m_win->get_exposed_win(), m_layer.get())) {
+    m_metal_view_ns = metal_view;
   }
 
   m_win->on_fb_resized().connect<&GPU_Interface::cb_fb_resized>(*this);
@@ -79,44 +82,97 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.tlas_sizes_desc->setInstanceDescriptorStride(
         sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
     frame.tlas_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+
+    frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
+                                         MTL::ResourceStorageModeShared);
+    frame.buff_rt_params = m_device->newBuffer(
+        sizeof(GPU_Types::Raytracing_Params), MTL::ResourceStorageModeShared);
+
+    frame.tex_rt_desc = MTL::TextureDescriptor::alloc()->init();
+    frame.tex_rt_desc->setTextureType(MTL::TextureType2D);
+    frame.tex_rt_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+    frame.tex_rt_desc->setMipmapLevelCount(1);
+    frame.tex_rt_desc->setStorageMode(MTL::StorageModePrivate);
+    frame.tex_rt_desc->setUsage(MTL::TextureUsageShaderRead |
+                                MTL::TextureUsageShaderWrite);
   }
 
   m_lib = m_device->newDefaultLibrary();
   if (!m_lib.exists())
     throw std::runtime_error("Failed: MTL::Device::newDefaultLibrary");
 
-  m_fns["v_present"] = m_lib->newFunction(
-      NS::String::string("v_present", NS::StringEncoding::UTF8StringEncoding));
-  m_fns["f_present"] = m_lib->newFunction(
-      NS::String::string("f_present", NS::StringEncoding::UTF8StringEncoding));
-
-  for (const auto &[_, fn] : m_fns)
-    if (!fn.exists())
-      throw std::runtime_error("Failed: MTL::Library::newFunction");
+  for (const std::string fn_name :
+       {"v_present", "f_present", "k_raytracer", "i_sphere"}) {
+    m_fns[fn_name] = m_lib->newFunction(NS::String::string(
+        fn_name.data(), NS::StringEncoding::UTF8StringEncoding));
+    if (!m_fns[fn_name].exists())
+      throw std::runtime_error(
+          std::string("Failed: MTL::Library::newFunction, ") + fn_name);
+  }
 
   NS::Error *err = nullptr;
+  MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
+      MTL4::ArgumentTableDescriptor::alloc()->init();
+  argt_rt_desc->setMaxBufferBindCount(4);
+  argt_rt_desc->setMaxTextureBindCount(1);
+  argt_rt_desc->setMaxSamplerStateBindCount(0);
+  m_argt_rt = m_device->newArgumentTable(argt_rt_desc.get(), &err);
+  if (!m_argt_rt.exists())
+    throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rt");
+
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rndr_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rndr_desc->setMaxBufferBindCount(1);
-  argt_rndr_desc->setMaxTextureBindCount(0);
+  argt_rndr_desc->setMaxBufferBindCount(0);
+  argt_rndr_desc->setMaxTextureBindCount(1);
   argt_rndr_desc->setMaxSamplerStateBindCount(0);
   m_argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
   if (!m_argt_rndr.exists())
-    throw std::runtime_error("Failed: MTL::Device::newArgumentTable");
+    throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rndr");
 
-  m_pool_limited.smart_release();
+  MTL_Unique<MTL::ComputePipelineDescriptor> ps_rt_desc =
+      MTL::ComputePipelineDescriptor::alloc()->init();
+  ps_rt_desc->setComputeFunction(m_fns["k_raytracer"].get());
 
-  MTL_Unique<MTL::RenderPipelineDescriptor> present_ps_desc =
+  MTL_Unique<MTL::LinkedFunctions> linked_fns =
+      MTL::LinkedFunctions::alloc()->init();
+  NS::Object *linked_ifs[] = {m_fns["i_sphere"].get()};
+  NS::Array *linked_ifs_array = NS::Array::array(linked_ifs, 1);
+  linked_fns->setFunctions(linked_ifs_array);
+  ps_rt_desc->setLinkedFunctions(linked_fns.get());
+
+  m_ps_rt = m_device->newComputePipelineState(
+      ps_rt_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
+  if (!m_ps_rt.exists())
+    throw std::runtime_error("Failed: MTL::Device::newComputePipelineState");
+
+  MTL_Unique<MTL::IntersectionFunctionTableDescriptor> ift_desc =
+      MTL::IntersectionFunctionTableDescriptor::alloc()->init();
+  ift_desc->setFunctionCount(1);
+  m_ift = m_ps_rt->newIntersectionFunctionTable(ift_desc.get());
+  if (!m_ift.exists())
+    throw std::runtime_error(
+        "Failed: MTL::ComputePipelineState::newIntersectionFunctionTable");
+
+  MTL_Unique<MTL::FunctionHandle> fnh_i_sphere =
+      m_ps_rt->functionHandle(m_fns["i_sphere"].get());
+  if (!fnh_i_sphere.exists())
+    throw std::runtime_error(
+        "Failed: MTL::ComputePipelineState::functionHandle");
+  m_ift->setFunction(fnh_i_sphere.get(), 0);
+
+  MTL_Unique<MTL::RenderPipelineDescriptor> ps_present_desc =
       MTL::RenderPipelineDescriptor::alloc()->init();
-  present_ps_desc->setVertexFunction(m_fns["v_present"].get());
-  present_ps_desc->setFragmentFunction(m_fns["f_present"].get());
-  present_ps_desc->colorAttachments()->object(0)->setPixelFormat(
+  ps_present_desc->setVertexFunction(m_fns["v_present"].get());
+  ps_present_desc->setFragmentFunction(m_fns["f_present"].get());
+  ps_present_desc->colorAttachments()->object(0)->setPixelFormat(
       MTL::PixelFormatBGRA8Unorm);
-  m_ps_present = m_device->newRenderPipelineState(present_ps_desc.get(), &err);
+  m_ps_present = m_device->newRenderPipelineState(ps_present_desc.get(), &err);
   if (!m_ps_present.exists())
     throw std::runtime_error("Failed: MTL::Device::newRenderPipelineState");
 
   m_rp_desc = MTL4::RenderPassDescriptor::alloc()->init();
+  m_rp_desc->setDefaultRasterSampleCount(1);
+  m_rp_desc->setRenderTargetArrayLength(1);
   m_rp_desc->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
   m_rp_desc->colorAttachments()->object(0)->setClearColor(
       MTL::ClearColor::Make(0.08, 0.12, 0.18, 1.0));
@@ -132,7 +188,7 @@ GPU_Interface::~GPU_Interface() {
 
   if (m_win) {
     m_win->on_fb_resized().disconnect<&GPU_Interface::cb_fb_resized>(*this);
-    Bridges::detach_ns_win(m_win->get_exposed_win());
+    Bridges::detach_ns_win(m_metal_view_ns.get());
   }
 }
 
@@ -153,6 +209,9 @@ void GPU_Interface::free_current_frame(const bool end_cmd_buff) {
 }
 
 void GPU_Interface::cycle_frame() {
+  MTL_Unique<NS::AutoreleasePool> pool_limited =
+      NS::AutoreleasePool::alloc()->init();
+
   m_slot = m_next_frame;
   m_next_frame = (m_next_frame + 1) % MAX_FRAMES_INFLIGHT;
   Frame_Context &frame = m_frame_contexts[m_slot];
@@ -182,6 +241,9 @@ void GPU_Interface::cycle_frame() {
 }
 
 GPU_Context GPU_Interface::get_gpu_context() {
+  MTL_Unique<NS::AutoreleasePool> pool_limited =
+      NS::AutoreleasePool::alloc()->init();
+
   if (skip_frame)
     return GPU_Context{m_slot, skip_frame, nullptr, nullptr};
 
@@ -196,13 +258,18 @@ GPU_Context GPU_Interface::get_gpu_context() {
 
 void GPU_Interface::render(
     const std::unordered_map<entt::entity, Render_Packet> &render_packets,
-    std::mutex &packet_mtx, const uint64_t packet_revision) {
+    std::mutex &packet_mtx, const uint64_t packet_revision,
+    const entt::registry &reg) {
+  MTL_Unique<NS::AutoreleasePool> pool_limited =
+      NS::AutoreleasePool::alloc()->init();
+
   if (skip_frame)
     return;
 
   Frame_Context &frame =
       m_frame_contexts[m_slot]; // Frame is already cycled when render is called
 
+  // --- Process tlas ---
   const bool rebuild_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
   frame.revision = packet_revision;
@@ -240,9 +307,10 @@ void GPU_Interface::render(
       n_packets *
           sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
 
-  /* For some reason Metal doesn't accept MTL4 descriptors for as sizing, so
-   * legacy descriptor must be used in addtion */
-  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(
+      n_packets)); // For some reason Metal doesn't accept MTL4 descriptors for
+                   // as sizing, so legacy descriptor must be used in addtion
+
   frame.tlas_sizes_desc->setInstanceDescriptorBuffer(
       frame.buff_as_instances.get());
   frame.tlas_sizes_desc->setInstanceDescriptorBufferOffset(0);
@@ -287,14 +355,91 @@ void GPU_Interface::render(
   m_ce_as->endEncoding();
   m_ce_as.smart_release();
 
-  m_rp_desc->colorAttachments()->object(0)->setTexture(
-      frame.drawable->texture());
-  if (MTL4::RenderCommandEncoder *encoder =
-          frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
-    m_ce_rndr = encoder->retain();
+  // --- Ensure validity of raytracing target texture ---
+  MTL::Texture *drawable_tex = frame.drawable->texture();
+  const NS::UInteger width = drawable_tex->width(),
+                     height = drawable_tex->height();
+  if (width == 0 || height == 0) {
+    free_current_frame(true);
+    return;
   }
 
-  if (!m_ce_rndr.exists()) {
+  if (!frame.tex_rt.exists() || frame.tex_rt->width() != width ||
+      frame.tex_rt->height() != height) {
+    frame.tex_rt_desc->setWidth(width);
+    frame.tex_rt_desc->setHeight(height);
+    frame.tex_rt = m_device->newTexture(frame.tex_rt_desc.get());
+    if (!frame.tex_rt.exists()) {
+      free_current_frame(true);
+      return;
+    }
+  }
+
+  // --- Load buffers ---
+  const auto &_cam_view = reg.view<Components::Camera>();
+  if (_cam_view.empty()) {
+    free_current_frame(true);
+    return;
+  }
+
+  const GPU_Types::Raytracing_Params params{frame.tlas.exists() ? 1u : 0u};
+  std::memcpy(frame.buff_rt_params->contents(), &params,
+              sizeof(GPU_Types::Raytracing_Params));
+
+  const Components::Camera &_cam =
+      reg.get<Components::Camera>(_cam_view.front());
+  GPU_Types::Camera cam;
+  const vec_f3 dir = _cam.fp - _cam.p;
+  cam.p = MTL::PackedFloat3{_cam.p.x, _cam.p.y, _cam.p.z};
+  cam.dir = MTL::PackedFloat3{dir.x, dir.y, dir.z};
+  cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
+  std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
+
+  m_argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
+  m_argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
+  m_argt_rt->setResource(
+      m_ift.exists() ? m_ift->gpuResourceID() : MTL::ResourceID(0), 2);
+  m_argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
+                                             : MTL::ResourceID(0),
+                         3);
+  m_argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
+
+  if (MTL4::ComputeCommandEncoder *ce_rt =
+          frame.cmd_buff->computeCommandEncoder())
+    m_ce_rt = ce_rt->retain();
+  else {
+    free_current_frame(true);
+    return;
+  }
+
+  m_ce_rt->setComputePipelineState(m_ps_rt.get());
+  m_ce_rt->setArgumentTable(m_argt_rt.get());
+
+  const NS::UInteger tg_width = m_ps_rt->threadExecutionWidth();
+  const NS::UInteger tg_height = std::max<NS::UInteger>(
+      1, m_ps_rt->maxTotalThreadsPerThreadgroup() / tg_width);
+  const MTL::Size grid =
+      MTL::Size(frame.tex_rt->width(), frame.tex_rt->height(), 1);
+  const MTL::Size tg =
+      MTL::Size(tg_width, std::min<NS::UInteger>(tg_height, 8), 1);
+  m_ce_rt->dispatchThreads(grid, tg);
+
+  m_ce_rt->endEncoding();
+  m_ce_rt.smart_release();
+
+  m_rp_desc->setRenderTargetWidth(width);
+  m_rp_desc->setRenderTargetHeight(height);
+  m_rp_desc->setDefaultRasterSampleCount(drawable_tex->sampleCount());
+  m_rp_desc->setRenderTargetArrayLength(
+      std::max<NS::UInteger>(1, drawable_tex->arrayLength()));
+  m_rp_desc->colorAttachments()->object(0)->setTexture(drawable_tex);
+
+  m_argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
+
+  if (MTL4::RenderCommandEncoder *ce_rndr =
+          frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
+    m_ce_rndr = ce_rndr->retain();
+  } else {
     free_current_frame(true);
     return;
   }

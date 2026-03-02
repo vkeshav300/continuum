@@ -1,10 +1,24 @@
 #pragma once
 
+#ifndef __METAL_VERSION__
+
+#include "../math_utils.hpp"
+
+#include <cstdint>
+
+#include <Metal/Metal.hpp>
+
+#endif
+
 namespace CTNM::RHI::GPU_Types {
+
+struct Raytracing_Params {
+  uint32_t has_scene;
+};
 
 #ifdef __METAL_VERSION__
 
-using gpu_vec_f3 = packed_float3;
+using gpu_vec_pf3 = packed_float3;
 
 struct Present_Vertex_Out {
   float4 p [[position]];
@@ -17,11 +31,27 @@ struct Intersection_Result {
 };
 
 struct AABB {
-  gpu_vec_f3 min;
-  gpu_vec_f3 max;
+  gpu_vec_pf3 min;
+  gpu_vec_pf3 max;
+};
+
+struct Raytracing_Params {
+  uint has_scene;
+};
+
+struct Camera {
+  gpu_vec_pf3 p;
+  gpu_vec_pf3 dir;
+  float fl;
 };
 
 #else
+
+struct Camera {
+  MTL::PackedFloat3 p;
+  MTL::PackedFloat3 dir;
+  float fl; // Focal length
+};
 
 #endif
 
