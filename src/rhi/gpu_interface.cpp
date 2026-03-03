@@ -103,7 +103,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
     frame.tex_rt_desc = MTL::TextureDescriptor::alloc()->init();
     frame.tex_rt_desc->setTextureType(MTL::TextureType2D);
-    frame.tex_rt_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+    frame.tex_rt_desc->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
     frame.tex_rt_desc->setMipmapLevelCount(1);
     frame.tex_rt_desc->setStorageMode(MTL::StorageModePrivate);
     frame.tex_rt_desc->setUsage(MTL::TextureUsageShaderRead |
