@@ -3,6 +3,7 @@
 #include "event.hpp"
 
 #include <chrono>
+#include <cstdint>
 
 #include <GLFW/glfw3.h>
 
@@ -28,9 +29,11 @@ public:
 
   void start_frame();
   void end_frame() const;
+  uint64_t get_frame_num() const;
 
 private:
   GLFWwindow *m_win;
+  uint64_t m_frame_num = 0;
 
   FB_Size m_fb_size;
   Event<FB_Size> m_ev_fb_resized;

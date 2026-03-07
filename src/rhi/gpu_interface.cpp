@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -115,8 +116,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
     frame.argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
     if (!frame.argt_rndr.exists())
-      throw std::runtime_error(
-          "Failed: MTL::Device::newArgumentTable, rndr");
+      throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rndr");
   }
 
   m_lib = m_device->newDefaultLibrary();
@@ -241,6 +241,9 @@ void GPU_Interface::cycle_frame() {
   }
 
   frame.cmd_buff->beginCommandBuffer(frame.cmd_alloc.get());
+  frame.label = "Frame " + std::to_string(m_win->get_frame_num());
+  frame.cmd_buff->setLabel(
+      NS::String::string(frame.label.c_str(), NS::UTF8StringEncoding));
 }
 
 GPU_Context GPU_Interface::get_gpu_context() {
@@ -450,6 +453,8 @@ void GPU_Interface::render(
     return;
   }
 
+  m_ce_rndr->setLabel(
+      NS::String::string(frame.label.c_str(), NS::UTF8StringEncoding));
   m_ce_rndr->barrierAfterQueueStages(MTL::StageDispatch, MTL::StageFragment,
                                      MTL4::VisibilityOptionDevice);
   m_ce_rndr->setRenderPipelineState(m_ps_present.get());

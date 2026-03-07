@@ -47,6 +47,7 @@ struct Frame_Context {
   uint64_t revision = 0;
   std::mutex mtx;
   std::condition_variable cv;
+  std::string label;
 };
 
 class GPU_Interface {

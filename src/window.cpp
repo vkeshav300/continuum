@@ -2,6 +2,7 @@
 #include "event.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <stdexcept>
 #include <thread>
 
@@ -62,7 +63,10 @@ void Window::poll_events() const { glfwPollEvents(); }
 
 FB_Size Window::get_fb_size() const { return m_fb_size; }
 
-void Window::start_frame() { m_frame_start = std::chrono::steady_clock::now(); }
+void Window::start_frame() {
+  m_frame_start = std::chrono::steady_clock::now();
+  m_frame_num++;
+}
 
 void Window::end_frame() const {
   poll_events();
@@ -71,5 +75,7 @@ void Window::end_frame() const {
   if (elapsed < m_target_frame_len)
     std::this_thread::sleep_for(m_target_frame_len - elapsed);
 }
+
+uint64_t Window::get_frame_num() const { return m_frame_num; }
 
 } // namespace CTNM
