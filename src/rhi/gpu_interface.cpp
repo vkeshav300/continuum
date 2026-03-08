@@ -256,7 +256,7 @@ GPU_Context GPU_Interface::get_gpu_context() {
   if (!m_ce_as.exists()) {
     if (MTL4::ComputeCommandEncoder *ce_as =
             m_frame_contexts[m_slot].cmd_buff->computeCommandEncoder())
-      m_ce_as = ce_as->retain();
+      m_ce_as = ce_as;
   }
 
   return GPU_Context{m_slot, skip_frame, m_device, m_ce_as};

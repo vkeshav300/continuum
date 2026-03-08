@@ -2,8 +2,6 @@
 
 #ifndef __METAL_VERSION__
 
-#include "../math_utils.hpp"
-
 #include <cstdint>
 
 #include <Metal/Metal.hpp>
