@@ -87,6 +87,7 @@
 #include "MTLResourceViewPool.hpp"
 #include "MTLTextureViewPool.hpp"
 #include "MTLDataType.hpp"
+#include "MTL4AccelerationStructure.hpp"
 #include "MTL4ArgumentTable.hpp"
 #include "MTL4BinaryFunction.hpp"
 #include "MTL4CommandAllocator.hpp"

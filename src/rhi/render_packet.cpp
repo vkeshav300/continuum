@@ -6,7 +6,6 @@
 #include <utility>
 
 #include <Foundation/Foundation.hpp>
-#include <Metal/MTL4AccelerationStructure.hpp>
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>
 

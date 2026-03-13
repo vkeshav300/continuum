@@ -6,7 +6,6 @@
 #include <array>
 #include <cstdint>
 
-#include <Metal/MTL4AccelerationStructure.hpp>
 #include <Metal/Metal.hpp>
 
 namespace CTNM::RHI {
