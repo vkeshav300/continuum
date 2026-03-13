@@ -156,8 +156,9 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     throw std::runtime_error(
         "Failed: MTL::ComputePipelineState::newIntersectionFunctionTable");
 
-  MTL_Unique<MTL::FunctionHandle> fnh_i_sphere =
-      m_ps_rt->functionHandle(m_fns["i_sphere"].get());
+  MTL_Unique<MTL::FunctionHandle> fnh_i_sphere = nullptr;
+  if (MTL::FunctionHandle *fnh = m_ps_rt->functionHandle(m_fns["i_sphere"].get()))
+    fnh_i_sphere = fnh->retain();
   if (!fnh_i_sphere.exists())
     throw std::runtime_error(
         "Failed: MTL::ComputePipelineState::functionHandle");
