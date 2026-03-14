@@ -304,7 +304,7 @@ void GPU_Interface::render(
       asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
       asi_desc.userID = iid++;
       asi_desc.transformationMatrix = packet.get_transform();
-      asi_desc.options = MTL::AccelerationStructureInstanceOptionOpaque;
+      asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
       asi_desc.mask = 0xFF;
       asi_desc.intersectionFunctionTableOffset = 0;
     }

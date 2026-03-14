@@ -77,7 +77,7 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
     as_geom_desc->setPrimitiveDataElementSize(
         sizeof(MTL::AxisAlignedBoundingBox));
     as_geom_desc->setPrimitiveDataStride(sizeof(MTL::AxisAlignedBoundingBox));
-    as_geom_desc->setOpaque(true);
+    as_geom_desc->setOpaque(false);
     as_geom_desc->setIntersectionFunctionTableOffset(0); // 0 = Sphere
 
     MTL_Unique<MTL::AccelerationStructureBoundingBoxGeometryDescriptor>
@@ -93,7 +93,7 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
         sizeof(MTL::AxisAlignedBoundingBox));
     as_geom_sizes_desc->setPrimitiveDataStride(
         sizeof(MTL::AxisAlignedBoundingBox));
-    as_geom_sizes_desc->setOpaque(true);
+    as_geom_sizes_desc->setOpaque(false);
     as_geom_sizes_desc->setIntersectionFunctionTableOffset(0);
 
     MTL4::AccelerationStructureBoundingBoxGeometryDescriptor *as_geom_descs[] =
