@@ -7,8 +7,8 @@ Continuum is a hobby project I started to learn more about low-level rendering o
 
 ### Running
 **Requirements:**
-- Apple Silicon chip
-- macOS which supports Metal 4
+- Apple M-Series chip
+- MacOS which supports Metal 4
 
 **Instructions:**
 Clone repo and execute the following commands:
@@ -16,9 +16,8 @@ Clone repo and execute the following commands:
 mkdir build
 cd build
 cmake ..
-make
+cmake --build .
 ```
 When you are ready to run, enter `./continuum`.
 
-### Optimization
-Continuum currently prioritizes smaller memory usage over processing optimization.
+In the future, a pre-compiled .app / dmg installer will be availible to download.

@@ -109,11 +109,6 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
         MTL4::PrimitiveAccelerationStructureDescriptor::alloc()->init();
     as_context.as_desc->setGeometryDescriptors(as_geom_desc_array);
     as_context.as_desc->setUsage(MTL::AccelerationStructureUsageRefit);
-
-    as_context.as_sizes_desc =
-        MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-    as_context.as_sizes_desc->setGeometryDescriptors(as_geom_sizes_desc_array);
-    as_context.as_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   }
 
   update(gpu_context, transform, bbox);
@@ -138,7 +133,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
   if (!as_context.as_built) {
     const MTL::AccelerationStructureSizes sizes =
         gpu_context.device->accelerationStructureSizes(
-            as_context.as_sizes_desc.get());
+            as_context.as_desc.get());
     as_context.buff_scratch = gpu_context.device->newBuffer(
         sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
     as_context.as = gpu_context.device->newAccelerationStructure(
@@ -153,7 +148,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
   } else if (refit) {
     const MTL::AccelerationStructureSizes sizes =
         gpu_context.device->accelerationStructureSizes(
-            as_context.as_sizes_desc.get());
+            as_context.as_desc.get());
     if (as_context.buff_scratch->length() != sizes.refitScratchBufferSize)
       as_context.buff_scratch = gpu_context.device->newBuffer(
           sizes.refitScratchBufferSize, MTL::ResourceStorageModePrivate);

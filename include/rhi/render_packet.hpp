@@ -22,8 +22,6 @@ struct AS_Context {
   MTL_Unique<MTL::Buffer> buff_aabb = nullptr;
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
 
-  MTL_Unique<MTL::PrimitiveAccelerationStructureDescriptor> as_sizes_desc =
-      nullptr;
   MTL_Unique<MTL4::PrimitiveAccelerationStructureDescriptor> as_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> as = nullptr;
 

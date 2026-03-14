@@ -91,11 +91,12 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
     frame.tlas_sizes_desc =
         MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
+    frame.tlas_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
     frame.tlas_sizes_desc->setInstanceDescriptorType(
         MTL::AccelerationStructureInstanceDescriptorTypeIndirect);
     frame.tlas_sizes_desc->setInstanceDescriptorStride(
         sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
-    frame.tlas_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+    frame.tlas_sizes_desc->setInstanceDescriptorBufferOffset(0);
 
     frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                          MTL::ResourceStorageModeShared);
@@ -157,7 +158,8 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
         "Failed: MTL::ComputePipelineState::newIntersectionFunctionTable");
 
   MTL_Unique<MTL::FunctionHandle> fnh_i_sphere = nullptr;
-  if (MTL::FunctionHandle *fnh = m_ps_rt->functionHandle(m_fns["i_sphere"].get()))
+  if (MTL::FunctionHandle *fnh =
+          m_ps_rt->functionHandle(m_fns["i_sphere"].get()))
     fnh_i_sphere = fnh->retain();
   if (!fnh_i_sphere.exists())
     throw std::runtime_error(
@@ -314,13 +316,9 @@ void GPU_Interface::render(
       n_packets *
           sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
 
-  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(
-      n_packets)); // For some reason Metal doesn't accept MTL4 descriptors for
-                   // as sizing, so legacy descriptor must be used in addtion
-
+  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
   frame.tlas_sizes_desc->setInstanceDescriptorBuffer(
       frame.buff_as_instances.get());
-  frame.tlas_sizes_desc->setInstanceDescriptorBufferOffset(0);
 
   const MTL::AccelerationStructureSizes sizes =
       m_device->accelerationStructureSizes(frame.tlas_sizes_desc.get());

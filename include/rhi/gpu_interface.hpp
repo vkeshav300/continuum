@@ -38,9 +38,9 @@ struct Frame_Context {
   MTL_Unique<MTL4::ArgumentTable> argt_rt = nullptr;
   MTL_Unique<MTL4::ArgumentTable> argt_rndr = nullptr;
 
+  MTL_Unique<MTL4::InstanceAccelerationStructureDescriptor> tlas_desc = nullptr;
   MTL_Unique<MTL::InstanceAccelerationStructureDescriptor> tlas_sizes_desc =
       nullptr;
-  MTL_Unique<MTL4::InstanceAccelerationStructureDescriptor> tlas_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> tlas = nullptr;
 
   bool ready = true, tlas_built = false;
