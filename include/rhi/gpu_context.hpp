@@ -15,6 +15,7 @@ struct GPU_Context {
   bool skip_frame = false;
   MTL_Shared<MTL::Device> device = nullptr;
   MTL_Shared<MTL4::ComputeCommandEncoder> ce_as = nullptr;
+  MTL_Shared<MTL::ResidencySet> rset = nullptr;
 };
 
 } // namespace CTNM::RHI

@@ -27,6 +27,7 @@ struct Frame_Context {
   MTL_Unique<MTL4::CommandBuffer> cmd_buff = nullptr;
   MTL_Unique<MTL4::CommandAllocator> cmd_alloc = nullptr;
   MTL_Unique<CA::MetalDrawable> drawable = nullptr;
+  MTL_Shared<MTL::ResidencySet> rset = nullptr;
 
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
   MTL_Unique<MTL::Buffer> buff_as_instances = nullptr;
@@ -71,6 +72,7 @@ private:
   MTL_Unique<NS::AutoreleasePool> m_pool_full = nullptr;
 
   MTL_Unique<CA::MetalLayer> m_layer = nullptr;
+  MTL_Unique<MTL::ResidencySet> m_rset_layer = nullptr;
 
   MTL_Shared<MTL::Device> m_device = nullptr;
   MTL_Unique<MTL::Library> m_lib = nullptr;

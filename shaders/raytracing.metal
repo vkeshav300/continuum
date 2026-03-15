@@ -63,7 +63,7 @@ k_raytracer(constant Raytracing_Params &config [[buffer(0)]],
     return;
   }
 
-  color = float3(255.0f, 0.0f, 0.0f);
+  color = float3(1.0f, 0.0f, 0.0f);
   // const uint iid = hit.instance_id;
   // color = surfaces[iid].c;
 

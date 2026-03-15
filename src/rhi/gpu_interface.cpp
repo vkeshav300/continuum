@@ -63,7 +63,17 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   if (!m_cmd_q.exists())
     throw std::runtime_error("Failed: MTL::Device::newMTL4CommandQueue");
 
+  if (MTL::ResidencySet *rset_layer = m_layer->residencySet())
+    m_rset_layer = rset_layer->retain();
+  if (!m_rset_layer.exists())
+    throw std::runtime_error("Failed: CA::MetalLayer::residencySet");
+  m_cmd_q->addResidencySet(m_rset_layer.get());
+
   NS::Error *err = nullptr;
+  MTL_Unique<MTL::ResidencySetDescriptor> rset_desc =
+      MTL::ResidencySetDescriptor::alloc()->init();
+  rset_desc->setInitialCapacity(16);
+
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
   argt_rt_desc->setMaxBufferBindCount(4);
@@ -80,6 +90,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.cmd_alloc = m_device->newCommandAllocator();
     if (!frame.cmd_alloc.exists())
       throw std::runtime_error("Failed: MTL::Device::newCommandAllocator()");
+
+    frame.rset = m_device->newResidencySet(rset_desc.get(), &err);
+    if (!frame.rset.exists())
+      throw std::runtime_error("Failed: MTL::Device::newResidencySet");
 
     frame.tlas_desc =
         MTL4::InstanceAccelerationStructureDescriptor::alloc()->init();
@@ -204,11 +218,15 @@ void GPU_Interface::free_current_frame(const bool end_cmd_buff) {
   if (frame.drawable.exists())
     frame.drawable.smart_release();
 
-  if (frame.cmd_buff.exists() && end_cmd_buff)
-    frame.cmd_buff->endCommandBuffer();
+  if (frame.cmd_buff.exists()) {
+    if (end_cmd_buff)
+      frame.cmd_buff->endCommandBuffer();
 
-  if (frame.cmd_buff.exists())
     frame.cmd_buff.smart_release();
+  }
+
+  if (frame.rset.exists())
+    frame.rset->removeAllAllocations();
 
   frame.ready = true;
   frame.cv.notify_one();
@@ -236,6 +254,8 @@ void GPU_Interface::cycle_frame() {
     return;
   }
 
+  m_cmd_q->wait(frame.drawable.get());
+
   frame.cmd_buff = m_device->newCommandBuffer();
   if (!frame.cmd_buff.exists()) {
     free_current_frame();
@@ -253,16 +273,18 @@ GPU_Context GPU_Interface::get_gpu_context() {
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
 
+  Frame_Context &frame = m_frame_contexts[m_slot];
+
   if (skip_frame)
     return GPU_Context{m_slot, skip_frame, nullptr, nullptr};
 
   if (!m_ce_as.exists()) {
     if (MTL4::ComputeCommandEncoder *ce_as =
-            m_frame_contexts[m_slot].cmd_buff->computeCommandEncoder())
+            frame.cmd_buff->computeCommandEncoder())
       m_ce_as = ce_as;
   }
 
-  return GPU_Context{m_slot, skip_frame, m_device, m_ce_as};
+  return GPU_Context{m_slot, skip_frame, m_device, m_ce_as, frame.rset};
 }
 
 void GPU_Interface::render(
@@ -443,6 +465,17 @@ void GPU_Interface::render(
   m_rp_desc->colorAttachments()->object(0)->setTexture(drawable_tex);
 
   frame.argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
+
+  frame.rset->addAllocation(frame.buff_scratch.get());
+  frame.rset->addAllocation(frame.buff_as_instances.get());
+  frame.rset->addAllocation(frame.buff_cam.get());
+  frame.rset->addAllocation(frame.buff_rt_params.get());
+  frame.rset->addAllocation(frame.tex_rt.get());
+  frame.rset->addAllocation(frame.tlas.get());
+  frame.rset->addAllocation(m_ift.get());
+
+  frame.rset->commit();
+  frame.cmd_buff->useResidencySet(frame.rset.get());
 
   if (MTL4::RenderCommandEncoder *ce_rndr =
           frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {

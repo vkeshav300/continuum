@@ -171,6 +171,10 @@ void Render_Packet::update(GPU_Context &gpu_context,
       as_context.as = std::move(as_new);
     }
   }
+
+  gpu_context.rset->addAllocation(as_context.buff_aabb.get());
+  gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+  gpu_context.rset->addAllocation(as_context.as.get());
 }
 
 bool Render_Packet::needs_refit(
