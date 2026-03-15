@@ -144,7 +144,6 @@ void Render_Packet::update(GPU_Context &gpu_context,
         MTL4::BufferRange::Make(as_context.buff_scratch->gpuAddress(),
                                 sizes.buildScratchBufferSize));
     as_context.as_built = true;
-    return;
   } else if (refit) {
     const MTL::AccelerationStructureSizes sizes =
         gpu_context.device->accelerationStructureSizes(
