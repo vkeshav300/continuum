@@ -106,6 +106,11 @@ void Render_Packet::update(GPU_Context &gpu_context,
     as_context.as = gpu_context.device->newAccelerationStructure(
         sizes.accelerationStructureSize);
 
+    gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+    gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+    gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+    gpu_context.rset->addAllocation(as_context.as.get());
+
     gpu_context.ce_as->buildAccelerationStructure(
         as_context.as.get(), as_context.as_desc.get(),
         MTL4::BufferRange::Make(as_context.buff_scratch->gpuAddress(),
@@ -124,20 +129,25 @@ void Render_Packet::update(GPU_Context &gpu_context,
       MTL_Unique<MTL::AccelerationStructure> as_new =
           gpu_context.device->newAccelerationStructure(
               sizes.accelerationStructureSize);
+      gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+      gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+      gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+      gpu_context.rset->addAllocation(as_context.as.get());
+      gpu_context.rset->addAllocation(as_new.get());
       gpu_context.ce_as->refitAccelerationStructure(
           as_context.as.get(), as_context.as_desc.get(), as_new.get(),
           buff_r_scratch);
       as_context.as = std::move(as_new);
-    } else
+    } else {
+      gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+      gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+      gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+      gpu_context.rset->addAllocation(as_context.as.get());
       gpu_context.ce_as->refitAccelerationStructure(
           as_context.as.get(), as_context.as_desc.get(), as_context.as.get(),
           buff_r_scratch);
+    }
   }
-
-  gpu_context.rset->addAllocation(as_context.buff_verticies.get());
-  gpu_context.rset->addAllocation(as_context.buff_indicies.get());
-  gpu_context.rset->addAllocation(as_context.buff_scratch.get());
-  gpu_context.rset->addAllocation(as_context.as.get());
 }
 
 bool Render_Packet::needs_rebuild(const uint32_t slot,

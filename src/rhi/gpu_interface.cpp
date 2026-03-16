@@ -214,8 +214,8 @@ void GPU_Interface::free_current_frame(const bool end_cmd_buff) {
     frame.cmd_buff.smart_release();
   }
 
-  if (frame.rset.exists())
-    frame.rset->removeAllAllocations();
+  frame.rset->removeAllAllocations();
+  frame.rset->commit();
 
   frame.ready = true;
   frame.cv.notify_one();
@@ -233,6 +233,9 @@ void GPU_Interface::cycle_frame() {
     frame.cv.wait(lock, [&frame] { return frame.ready; });
     frame.ready = skip_frame = false;
   }
+
+  frame.rset->removeAllAllocations();
+  frame.rset->commit();
 
   if (CA::MetalDrawable *drawable = m_layer->nextDrawable())
     frame.drawable = drawable->retain();
@@ -272,6 +275,8 @@ GPU_Context GPU_Interface::get_gpu_context() {
             frame.cmd_buff->computeCommandEncoder())
       m_ce_as = ce_as;
   }
+
+  frame.cmd_buff->useResidencySet(frame.rset.get());
 
   return GPU_Context{m_slot, skip_frame, m_device, m_ce_as, frame.rset};
 }
@@ -347,6 +352,10 @@ void GPU_Interface::render(
                                              MTL::ResourceStorageModePrivate);
     frame.tlas =
         m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+    frame.rset->addAllocation(frame.buff_as_instances.get());
+    frame.rset->addAllocation(frame.buff_as_instance_ct.get());
+    frame.rset->addAllocation(frame.buff_scratch.get());
+    frame.rset->addAllocation(frame.tlas.get());
     m_ce_as->buildAccelerationStructure(
         frame.tlas.get(), frame.tlas_desc.get(),
         MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
@@ -360,13 +369,22 @@ void GPU_Interface::render(
     const MTL4::BufferRange buff_r_scratch = MTL4::BufferRange::Make(
         frame.buff_scratch->gpuAddress(), sizes.refitScratchBufferSize);
 
-    if (frame.tlas->size() == sizes.accelerationStructureSize)
+    if (frame.tlas->size() == sizes.accelerationStructureSize) {
+      frame.rset->addAllocation(frame.buff_as_instances.get());
+      frame.rset->addAllocation(frame.buff_as_instance_ct.get());
+      frame.rset->addAllocation(frame.buff_scratch.get());
+      frame.rset->addAllocation(frame.tlas.get());
       m_ce_as->refitAccelerationStructure(
           frame.tlas.get(), frame.tlas_desc.get(), frame.tlas.get(),
           buff_r_scratch); // In-place refit
-    else {
+    } else {
       MTL_Unique<MTL::AccelerationStructure> tlas_new =
           m_device->newAccelerationStructure(sizes.accelerationStructureSize);
+      frame.rset->addAllocation(frame.buff_as_instances.get());
+      frame.rset->addAllocation(frame.buff_as_instance_ct.get());
+      frame.rset->addAllocation(frame.buff_scratch.get());
+      frame.rset->addAllocation(frame.tlas.get());
+      frame.rset->addAllocation(tlas_new.get());
       m_ce_as->refitAccelerationStructure(frame.tlas.get(),
                                           frame.tlas_desc.get(), tlas_new.get(),
                                           buff_r_scratch);
@@ -463,14 +481,10 @@ void GPU_Interface::render(
 
   frame.argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
-  frame.rset->addAllocation(frame.buff_scratch.get());
-  frame.rset->addAllocation(frame.buff_as_instances.get());
-  frame.rset->addAllocation(frame.buff_as_instance_ct.get());
   frame.rset->addAllocation(frame.buff_cam.get());
   frame.rset->addAllocation(frame.buff_rt_params.get());
   frame.rset->addAllocation(frame.buff_rt_args.get());
   frame.rset->addAllocation(frame.tex_rt.get());
-  frame.rset->addAllocation(frame.tlas.get());
 
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());
