@@ -6,6 +6,33 @@
 #include <chrono>
 #include <memory>
 
+inline CTNM::Components::Mesh generate_cube_mesh(const float h = 0.5f) {
+  CTNM::Components::Mesh mesh{.verticies =
+                                  {
+                                      {{-h, -h, +h}}, {{+h, -h, +h}},
+                                      {{+h, +h, +h}}, {{-h, +h, +h}}, // front
+                                      {{+h, -h, -h}}, {{-h, -h, -h}},
+                                      {{-h, +h, -h}}, {{+h, +h, -h}}, // back
+                                      {{-h, -h, -h}}, {{-h, -h, +h}},
+                                      {{-h, +h, +h}}, {{-h, +h, -h}}, // left
+                                      {{+h, -h, +h}}, {{+h, -h, -h}},
+                                      {{+h, +h, -h}}, {{+h, +h, +h}}, // right
+                                      {{-h, +h, +h}}, {{+h, +h, +h}},
+                                      {{+h, +h, -h}}, {{-h, +h, -h}}, // top
+                                      {{-h, -h, -h}}, {{+h, -h, -h}},
+                                      {{+h, -h, +h}}, {{-h, -h, +h}}, // bottom
+                                  },
+                              .indicies = {
+                                  0,  1,  2,  0,  2,  3,  // front
+                                  4,  5,  6,  4,  6,  7,  // back
+                                  8,  9,  10, 8,  10, 11, // left
+                                  12, 13, 14, 12, 14, 15, // right
+                                  16, 17, 18, 16, 18, 19, // top
+                                  20, 21, 22, 20, 22, 23  // bottom
+                              }};
+  return mesh;
+}
+
 int main(int argc, char *argv[]) {
   entt::registry reg;
   std::shared_ptr<CTNM::Window> win(std::make_shared<CTNM::Window>(
@@ -13,21 +40,18 @@ int main(int argc, char *argv[]) {
   CTNM::RHI::GPU_Interface interface(win);
   CTNM::Stager stager;
 
+  const float h = 0.5f;
   entt::entity en1 = reg.create();
-  reg.emplace<CTNM::Components::Transform>(en1);
-  reg.emplace<CTNM::Components::AABB>(en1);
-
-  entt::entity en2 = reg.create();
-  reg.emplace<CTNM::Components::Transform>(en2, vec_f3{3.0f, -0.5f, 0.0f});
-  reg.emplace<CTNM::Components::AABB>(en2);
+  reg.emplace<CTNM::Components::Transform>(en1, vec_f3{3.0f, -0.5f, 0.0f});
+  reg.emplace<CTNM::Components::Mesh>(en1, generate_cube_mesh());
 
   entt::entity cam = reg.create();
   reg.emplace<CTNM::Components::Camera>(cam);
 
-  auto sink_on_aabb_destroy = reg.on_destroy<CTNM::Components::AABB>();
+  auto sink_on_mesh_destroy = reg.on_destroy<CTNM::Components::Mesh>();
   auto &ev_on_cpu_completed = interface.on_cpu_completed();
   auto &ev_on_gpu_completed = interface.on_gpu_completed();
-  sink_on_aabb_destroy.connect<&CTNM::Stager::decommission_packet>(stager);
+  sink_on_mesh_destroy.connect<&CTNM::Stager::decommission_packet>(stager);
   ev_on_cpu_completed.connect<&CTNM::Stager::attach_decommissioned_packets>(
       stager);
   ev_on_gpu_completed.connect<&CTNM::Stager::clear_decommissioned_packets>(
@@ -52,7 +76,7 @@ int main(int argc, char *argv[]) {
 
   stager.wait_until_idle();
 
-  sink_on_aabb_destroy.disconnect();
+  sink_on_mesh_destroy.disconnect();
   ev_on_cpu_completed.clear();
   ev_on_gpu_completed.clear();
 

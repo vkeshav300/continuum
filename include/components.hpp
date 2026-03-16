@@ -2,6 +2,9 @@
 
 #include "math_utils.hpp"
 
+#include <cstdint>
+#include <vector>
+
 namespace CTNM::Components {
 
 struct Transform {
@@ -14,12 +17,14 @@ struct Physics {
   vec_f3 v = {0.0f, 0.0f, 0.0f}; // Velocity
 };
 
-struct AABB {
-  float r = 1.0f; // Radius
+struct Vertex {
+  vec_f3 pos = {0.0f, 0.0f, 0.0f};
 };
 
-struct Surface {
-  color c = {0.0f, 0.0f, 255.0f};
+struct Mesh {
+  std::vector<Vertex> verticies = {};
+  std::vector<uint32_t> indicies = {};
+  uint64_t revision = 0;
 };
 
 struct Camera {

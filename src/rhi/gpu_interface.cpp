@@ -76,7 +76,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rt_desc->setMaxBufferBindCount(4);
+  argt_rt_desc->setMaxBufferBindCount(3);
   argt_rt_desc->setMaxTextureBindCount(1);
   argt_rt_desc->setMaxSamplerStateBindCount(0);
 
@@ -96,7 +96,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
       throw std::runtime_error("Failed: MTL::Device::newResidencySet");
 
     frame.tlas_desc =
-        MTL4::InstanceAccelerationStructureDescriptor::alloc()->init();
+        MTL4::IndirectInstanceAccelerationStructureDescriptor::alloc()->init();
     frame.tlas_desc->setInstanceDescriptorType(
         MTL::AccelerationStructureInstanceDescriptorTypeIndirect);
     frame.tlas_desc->setInstanceDescriptorStride(
@@ -104,13 +104,16 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.tlas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
 
     frame.tlas_sizes_desc =
-        MTL::InstanceAccelerationStructureDescriptor::alloc()->init();
+        MTL::IndirectInstanceAccelerationStructureDescriptor::alloc()->init();
     frame.tlas_sizes_desc->setUsage(MTL::AccelerationStructureUsageRefit);
     frame.tlas_sizes_desc->setInstanceDescriptorType(
         MTL::AccelerationStructureInstanceDescriptorTypeIndirect);
     frame.tlas_sizes_desc->setInstanceDescriptorStride(
         sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
     frame.tlas_sizes_desc->setInstanceDescriptorBufferOffset(0);
+
+    frame.buff_as_instance_ct =
+        m_device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
 
     frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                          MTL::ResourceStorageModeShared);
@@ -138,8 +141,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   if (!m_lib.exists())
     throw std::runtime_error("Failed: MTL::Device::newDefaultLibrary");
 
-  for (const std::string fn_name :
-       {"v_present", "f_present", "k_raytracer", "i_sphere"}) {
+  for (const std::string fn_name : {"v_present", "f_present", "k_raytracer"}) {
     m_fns[fn_name] = m_lib->newFunction(NS::String::string(
         fn_name.data(), NS::StringEncoding::UTF8StringEncoding));
     if (!m_fns[fn_name].exists())
@@ -151,34 +153,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
       MTL::ComputePipelineDescriptor::alloc()->init();
   ps_rt_desc->setComputeFunction(m_fns["k_raytracer"].get());
 
-  MTL_Unique<MTL::LinkedFunctions> linked_fns =
-      MTL::LinkedFunctions::alloc()->init();
-  NS::Object *linked_ifs[] = {m_fns["i_sphere"].get()};
-  NS::Array *linked_ifs_array = NS::Array::array(linked_ifs, 1);
-  linked_fns->setFunctions(linked_ifs_array);
-  ps_rt_desc->setLinkedFunctions(linked_fns.get());
-
   m_ps_rt = m_device->newComputePipelineState(
       ps_rt_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
   if (!m_ps_rt.exists())
     throw std::runtime_error("Failed: MTL::Device::newComputePipelineState");
-
-  MTL_Unique<MTL::IntersectionFunctionTableDescriptor> ift_desc =
-      MTL::IntersectionFunctionTableDescriptor::alloc()->init();
-  ift_desc->setFunctionCount(1);
-  m_ift = m_ps_rt->newIntersectionFunctionTable(ift_desc.get());
-  if (!m_ift.exists())
-    throw std::runtime_error(
-        "Failed: MTL::ComputePipelineState::newIntersectionFunctionTable");
-
-  MTL_Unique<MTL::FunctionHandle> fnh_i_sphere = nullptr;
-  if (MTL::FunctionHandle *fnh =
-          m_ps_rt->functionHandle(m_fns["i_sphere"].get()))
-    fnh_i_sphere = fnh->retain();
-  if (!fnh_i_sphere.exists())
-    throw std::runtime_error(
-        "Failed: MTL::ComputePipelineState::functionHandle");
-  m_ift->setFunction(fnh_i_sphere.get(), 0);
 
   MTL_Unique<MTL::RenderPipelineDescriptor> ps_present_desc =
       MTL::RenderPipelineDescriptor::alloc()->init();
@@ -325,20 +303,28 @@ void GPU_Interface::render(
           asi_descs[iid];
       asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
       asi_desc.userID = iid++;
-      asi_desc.transformationMatrix = packet.get_transform();
+      asi_desc.transformationMatrix = packet.get_transform(m_slot);
       asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
       asi_desc.mask = 0xFF;
       asi_desc.intersectionFunctionTableOffset = 0;
     }
   }
 
-  frame.tlas_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
+  const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
+  std::memcpy(frame.buff_as_instance_ct->contents(), &n_packets_u32,
+              sizeof(uint32_t));
+  frame.tlas_desc->setMaxInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_desc->setInstanceCountBuffer(MTL4::BufferRange::Make(
+      frame.buff_as_instance_ct->gpuAddress(), sizeof(uint32_t)));
   frame.tlas_desc->setInstanceDescriptorBuffer(MTL4::BufferRange::Make(
       frame.buff_as_instances->gpuAddress(),
       n_packets *
           sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
 
-  frame.tlas_sizes_desc->setInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_sizes_desc->setMaxInstanceCount(
+      static_cast<NS::UInteger>(n_packets));
+  frame.tlas_sizes_desc->setInstanceCountBuffer(
+      frame.buff_as_instance_ct.get());
   frame.tlas_sizes_desc->setInstanceDescriptorBuffer(
       frame.buff_as_instances.get());
 
@@ -424,11 +410,9 @@ void GPU_Interface::render(
 
   frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
   frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
-  frame.argt_rt->setResource(
-      m_ift.exists() ? m_ift->gpuResourceID() : MTL::ResourceID(0), 2);
   frame.argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
                                                  : MTL::ResourceID(0),
-                             3);
+                             2);
   frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   if (MTL4::ComputeCommandEncoder *ce_rt =
@@ -468,11 +452,11 @@ void GPU_Interface::render(
 
   frame.rset->addAllocation(frame.buff_scratch.get());
   frame.rset->addAllocation(frame.buff_as_instances.get());
+  frame.rset->addAllocation(frame.buff_as_instance_ct.get());
   frame.rset->addAllocation(frame.buff_cam.get());
   frame.rset->addAllocation(frame.buff_rt_params.get());
   frame.rset->addAllocation(frame.tex_rt.get());
   frame.rset->addAllocation(frame.tlas.get());
-  frame.rset->addAllocation(m_ift.get());
 
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());

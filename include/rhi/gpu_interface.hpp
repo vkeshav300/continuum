@@ -31,6 +31,7 @@ struct Frame_Context {
 
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
   MTL_Unique<MTL::Buffer> buff_as_instances = nullptr;
+  MTL_Unique<MTL::Buffer> buff_as_instance_ct = nullptr;
   MTL_Unique<MTL::Buffer> buff_cam = nullptr;
   MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
 
@@ -39,9 +40,10 @@ struct Frame_Context {
   MTL_Unique<MTL4::ArgumentTable> argt_rt = nullptr;
   MTL_Unique<MTL4::ArgumentTable> argt_rndr = nullptr;
 
-  MTL_Unique<MTL4::InstanceAccelerationStructureDescriptor> tlas_desc = nullptr;
-  MTL_Unique<MTL::InstanceAccelerationStructureDescriptor> tlas_sizes_desc =
+  MTL_Unique<MTL4::IndirectInstanceAccelerationStructureDescriptor> tlas_desc =
       nullptr;
+  MTL_Unique<MTL::IndirectInstanceAccelerationStructureDescriptor>
+      tlas_sizes_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> tlas = nullptr;
 
   bool ready = true, tlas_built = false;
@@ -78,7 +80,6 @@ private:
   MTL_Unique<MTL::Library> m_lib = nullptr;
   MTL_Unique<MTL::RenderPipelineState> m_ps_present = nullptr;
   MTL_Unique<MTL::ComputePipelineState> m_ps_rt = nullptr;
-  MTL_Unique<MTL::IntersectionFunctionTable> m_ift = nullptr;
 
   MTL_Unique<MTL4::CommandQueue> m_cmd_q = nullptr;
   MTL_Unique<MTL4::RenderPassDescriptor> m_rp_desc = nullptr;

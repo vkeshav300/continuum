@@ -1,18 +1,21 @@
 #pragma once
 
-/* Numeric manipulation */
-bool approx_eq(const float a, const float b);
+#include <cmath>
+#include <limits>
 
 #include <simd/simd.h>
 
-using vec_f3 = vector_float3;
-using vec_f4 = vector_float4;
+using vec_f3 = simd::float3;
+using vec_f4 = simd::float4;
 
-using color = vector_float3;
+inline bool approx_eq(const float a, const float b) {
+  return std::fabs(a - b) < std::numeric_limits<float>::epsilon();
+}
 
-/* Vector manipulation */
-float magnitude(const vec_f3 &vec);
-float magnitude(const vec_f4 &vec);
+inline float magnitude(const vec_f3 &vec) { return simd_length(vec); }
 
-vec_f3 normalize(const vec_f3 &vec);
-vec_f4 normalize(const vec_f4 &vec);
+inline float magnitude(const vec_f4 &vec) { return simd_length(vec); }
+
+inline vec_f3 normalize(const vec_f3 &vec) { return simd_normalize(vec); }
+
+inline vec_f4 normalize(const vec_f4 &vec) { return simd_normalize(vec); }
