@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 
   const float h = 0.5f;
   entt::entity en1 = reg.create();
-  reg.emplace<CTNM::Components::Transform>(en1, vec_f3{3.0f, -0.5f, 0.0f});
+  reg.emplace<CTNM::Components::Transform>(en1, vec_f3{0.0f, 0.0f, 0.0f});
   reg.emplace<CTNM::Components::Mesh>(en1, generate_cube_mesh());
 
   entt::entity cam = reg.create();

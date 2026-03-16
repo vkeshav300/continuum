@@ -17,9 +17,19 @@ using namespace CTNM::RHI::GPU_Types;
   if (tid.x >= out_tex.get_width() || tid.y >= out_tex.get_height())
     return;
 
+  const float2 size = float2(out_tex.get_width(), out_tex.get_height()),
+               uv = (float2(tid) + 0.5f) / size, ndc = uv * 2.0f - 1.0f;
+  const float aspect = size.x / size.y;
+  const float2 film = float2(ndc.x * aspect * 0.5f, -ndc.y * 0.5f);
+  const float3 forward = normalize(float3(cam.dir)),
+               world_up = abs(forward.y) > 0.999f ? float3(0.0f, 0.0f, 1.0f)
+                                                  : float3(0.0f, 1.0f, 0.0f),
+               right = normalize(cross(world_up, forward)),
+               up = cross(forward, right);
+
   raytracing::ray ray;
   ray.origin = float3(cam.p);
-  ray.direction = normalize(float3(cam.dir));
+  ray.direction = normalize(forward * cam.fl + right * film.x + up * film.y);
   ray.min_distance = 0.01f;
   ray.max_distance = 1000.0f;
 
