@@ -34,6 +34,7 @@ struct Frame_Context {
   MTL_Unique<MTL::Buffer> buff_as_instance_ct = nullptr;
   MTL_Unique<MTL::Buffer> buff_cam = nullptr;
   MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
+  MTL_Unique<MTL::Buffer> buff_rt_args = nullptr;
 
   MTL_Unique<MTL::TextureDescriptor> tex_rt_desc = nullptr;
   MTL_Unique<MTL::Texture> tex_rt = nullptr;
@@ -78,6 +79,7 @@ private:
 
   MTL_Shared<MTL::Device> m_device = nullptr;
   MTL_Unique<MTL::Library> m_lib = nullptr;
+  MTL_Unique<MTL::ArgumentEncoder> m_ae_rt = nullptr;
   MTL_Unique<MTL::RenderPipelineState> m_ps_present = nullptr;
   MTL_Unique<MTL::ComputePipelineState> m_ps_rt = nullptr;
 
