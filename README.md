@@ -7,7 +7,7 @@ Continuum is a hobby project I started to learn more about low-level rendering o
 
 ### Running
 **Requirements:**
-- Apple M-Series chip
+- Apple M3+ chip
 - MacOS which supports Metal 4
 
 **Instructions:**
