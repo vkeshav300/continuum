@@ -110,6 +110,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
     gpu_context.rset->addAllocation(as_context.buff_indicies.get());
     gpu_context.rset->addAllocation(as_context.buff_scratch.get());
     gpu_context.rset->addAllocation(as_context.as.get());
+    gpu_context.rset->commit();
 
     gpu_context.ce_as->buildAccelerationStructure(
         as_context.as.get(), as_context.as_desc.get(),
@@ -134,6 +135,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
       gpu_context.rset->addAllocation(as_context.buff_scratch.get());
       gpu_context.rset->addAllocation(as_context.as.get());
       gpu_context.rset->addAllocation(as_new.get());
+      gpu_context.rset->commit();
       gpu_context.ce_as->refitAccelerationStructure(
           as_context.as.get(), as_context.as_desc.get(), as_new.get(),
           buff_r_scratch);
@@ -143,6 +145,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
       gpu_context.rset->addAllocation(as_context.buff_indicies.get());
       gpu_context.rset->addAllocation(as_context.buff_scratch.get());
       gpu_context.rset->addAllocation(as_context.as.get());
+      gpu_context.rset->commit();
       gpu_context.ce_as->refitAccelerationStructure(
           as_context.as.get(), as_context.as_desc.get(), as_context.as.get(),
           buff_r_scratch);

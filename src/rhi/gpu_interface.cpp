@@ -294,6 +294,11 @@ void GPU_Interface::render(
   Frame_Context &frame =
       m_frame_contexts[m_slot]; // Frame is already cycled when render is called
 
+  // BLAS allocations are queued during staging; commit them before TLAS work
+  // references those acceleration structures.
+  frame.rset->commit();
+  frame.cmd_buff->useResidencySet(frame.rset.get());
+
   // --- Process tlas ---
   const bool rebuild_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
@@ -356,13 +361,15 @@ void GPU_Interface::render(
     frame.rset->addAllocation(frame.buff_as_instance_ct.get());
     frame.rset->addAllocation(frame.buff_scratch.get());
     frame.rset->addAllocation(frame.tlas.get());
+    frame.rset->commit();
+    frame.cmd_buff->useResidencySet(frame.rset.get());
     m_ce_as->buildAccelerationStructure(
         frame.tlas.get(), frame.tlas_desc.get(),
         MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
                                 sizes.buildScratchBufferSize));
     frame.tlas_built = true;
   } else {
-    if (frame.buff_scratch->length() != sizes.refitScratchBufferSize)
+    if (frame.buff_scratch->length() < sizes.refitScratchBufferSize)
       frame.buff_scratch = m_device->newBuffer(sizes.refitScratchBufferSize,
                                                MTL::ResourceStorageModePrivate);
 
@@ -374,6 +381,8 @@ void GPU_Interface::render(
       frame.rset->addAllocation(frame.buff_as_instance_ct.get());
       frame.rset->addAllocation(frame.buff_scratch.get());
       frame.rset->addAllocation(frame.tlas.get());
+      frame.rset->commit();
+      frame.cmd_buff->useResidencySet(frame.rset.get());
       m_ce_as->refitAccelerationStructure(
           frame.tlas.get(), frame.tlas_desc.get(), frame.tlas.get(),
           buff_r_scratch); // In-place refit
@@ -385,6 +394,8 @@ void GPU_Interface::render(
       frame.rset->addAllocation(frame.buff_scratch.get());
       frame.rset->addAllocation(frame.tlas.get());
       frame.rset->addAllocation(tlas_new.get());
+      frame.rset->commit();
+      frame.cmd_buff->useResidencySet(frame.rset.get());
       m_ce_as->refitAccelerationStructure(frame.tlas.get(),
                                           frame.tlas_desc.get(), tlas_new.get(),
                                           buff_r_scratch);
@@ -485,7 +496,6 @@ void GPU_Interface::render(
   frame.rset->addAllocation(frame.buff_rt_params.get());
   frame.rset->addAllocation(frame.buff_rt_args.get());
   frame.rset->addAllocation(frame.tex_rt.get());
-
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());
 
