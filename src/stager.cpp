@@ -87,8 +87,7 @@ std::mutex &Stager::get_mutex() { return m_mtx; }
 
 void Stager::wait_until_idle() {
   std::unique_lock<std::mutex> lock(m_mtx);
-  m_cv.wait_for(lock, std::chrono::milliseconds(IDLE_TIMEOUT),
-                [&]() { return m_inflight == 0; });
+  m_cv.wait(lock, [&]() { return m_inflight == 0; });
 }
 
 } // namespace CTNM

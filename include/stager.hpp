@@ -14,8 +14,6 @@
 
 namespace CTNM {
 
-constexpr uint32_t IDLE_TIMEOUT = 2000;
-
 class Stager {
 public:
   Stager() = default;
