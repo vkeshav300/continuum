@@ -292,6 +292,8 @@ void GPU_Interface::render(
   // --- Process tlas ---
   const bool rebuild_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
+  if (rebuild_tlas)
+    frame.tlas_built = false;
   frame.revision = packet_revision;
   size_t n_packets;
   std::vector<GPU_Types::Surface> surfaces;
@@ -371,7 +373,6 @@ void GPU_Interface::render(
         frame.tlas.get(), frame.tlas_desc.get(),
         MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
                                 sizes.buildScratchBufferSize));
-    frame.tlas_built = true;
   } else {
     if (frame.buff_scratch->length() < sizes.refitScratchBufferSize)
       frame.buff_scratch = m_device->newBuffer(sizes.refitScratchBufferSize,
@@ -526,10 +527,14 @@ void GPU_Interface::render(
   Event<uint32_t> &ev_gpu_completed = m_ev_gpu_completed;
   const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
-      [&frame, &ev_gpu_completed, slot](MTL4::CommitFeedback *) {
+      [&frame, &ev_gpu_completed, slot,
+       rebuild_tlas](MTL4::CommitFeedback *feedback) {
         frame.cmd_alloc->reset();
-
         std::lock_guard<std::mutex> lock(frame.mtx);
+
+        if (rebuild_tlas && (!feedback || feedback->error() == nullptr))
+          frame.tlas_built = true;
+
         if (frame.drawable.exists())
           frame.drawable.smart_release();
 
