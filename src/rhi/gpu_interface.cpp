@@ -76,8 +76,8 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rt_desc->setMaxBufferBindCount(1);
-  argt_rt_desc->setMaxTextureBindCount(0);
+  argt_rt_desc->setMaxBufferBindCount(3);
+  argt_rt_desc->setMaxTextureBindCount(1);
   argt_rt_desc->setMaxSamplerStateBindCount(0);
 
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rndr_desc =
@@ -152,17 +152,6 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   MTL_Unique<MTL::ComputePipelineDescriptor> ps_rt_desc =
       MTL::ComputePipelineDescriptor::alloc()->init();
   ps_rt_desc->setComputeFunction(m_fns["k_raytracer"].get());
-
-  m_ae_rt = m_fns["k_raytracer"]->newArgumentEncoder(0);
-  if (!m_ae_rt.exists())
-    throw std::runtime_error("Failed: MTL::Function::newArgumentEncoder");
-
-  for (auto &frame : m_frame_contexts) {
-    frame.buff_rt_args = m_device->newBuffer(m_ae_rt->encodedLength(),
-                                             MTL::ResourceStorageModeShared);
-    if (!frame.buff_rt_args.exists())
-      throw std::runtime_error("Failed: MTL::Device::newBuffer, rt args");
-  }
 
   m_ps_rt = m_device->newComputePipelineState(
       ps_rt_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
@@ -448,14 +437,12 @@ void GPU_Interface::render(
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
   std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
 
-  m_ae_rt->setArgumentBuffer(frame.buff_rt_args.get(), 0);
-  m_ae_rt->setBuffer(frame.buff_rt_params.get(), 0, 0);
-  m_ae_rt->setBuffer(frame.buff_cam.get(), 0, 1);
-  m_ae_rt->setAccelerationStructure(
-      frame.tlas.exists() ? frame.tlas.get() : nullptr, 2);
-  m_ae_rt->setTexture(frame.tex_rt.get(), 3);
-
-  frame.argt_rt->setAddress(frame.buff_rt_args->gpuAddress(), 0);
+  frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
+  frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
+  frame.argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
+                                                 : MTL::ResourceID{0},
+                             2);
+  frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   if (MTL4::ComputeCommandEncoder *ce_rt =
           frame.cmd_buff->computeCommandEncoder())
@@ -494,7 +481,6 @@ void GPU_Interface::render(
 
   frame.rset->addAllocation(frame.buff_cam.get());
   frame.rset->addAllocation(frame.buff_rt_params.get());
-  frame.rset->addAllocation(frame.buff_rt_args.get());
   frame.rset->addAllocation(frame.tex_rt.get());
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());
