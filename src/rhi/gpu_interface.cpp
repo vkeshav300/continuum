@@ -326,9 +326,13 @@ void GPU_Interface::render(
     }
   }
 
-  if (frame.buff_surfaces->length() / sizeof(GPU_Types::Surface) < n_packets)
-    frame.buff_surfaces = m_device->newBuffer(
-        n_packets * sizeof(GPU_Types::Surface), MTL::ResourceStorageModeShared);
+  const size_t buff_surfaces_len =
+      (n_packets == 0 ? 1 : n_packets) * sizeof(GPU_Types::Surface);
+  if (!frame.buff_surfaces.exists() ||
+      frame.buff_surfaces->length() < buff_surfaces_len)
+    ;
+  frame.buff_surfaces =
+      m_device->newBuffer(buff_surfaces_len, MTL::ResourceStorageModeShared);
 
   const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
   std::memcpy(frame.buff_as_instance_ct->contents(), &n_packets_u32,
@@ -492,6 +496,7 @@ void GPU_Interface::render(
 
   frame.rset->addAllocation(frame.buff_cam.get());
   frame.rset->addAllocation(frame.buff_rt_params.get());
+  frame.rset->addAllocation(frame.buff_surfaces.get());
   frame.rset->addAllocation(frame.tex_rt.get());
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());
