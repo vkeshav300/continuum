@@ -272,7 +272,7 @@ GPU_Context GPU_Interface::get_gpu_context() {
 }
 
 void GPU_Interface::render(
-    const std::unordered_map<entt::entity, Render_Packet> &render_packets,
+    std::unordered_map<entt::entity, Render_Packet> &render_packets,
     std::mutex &packet_mtx, const uint64_t packet_revision,
     const entt::registry &reg) {
   MTL_Unique<NS::AutoreleasePool> pool_limited =
@@ -292,14 +292,18 @@ void GPU_Interface::render(
   // --- Process tlas ---
   const bool rebuild_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
+  if (rebuild_tlas)
+    frame.tlas_built = false;
   frame.revision = packet_revision;
   size_t n_packets;
   std::vector<GPU_Types::Surface> surfaces;
+  std::vector<Render_Packet *> rebuilt_packets;
 
   {
     const std::lock_guard<std::mutex> lock(packet_mtx);
     n_packets = render_packets.size();
     surfaces.reserve(n_packets);
+    rebuilt_packets.reserve(n_packets);
 
     if (rebuild_tlas)
       frame.buff_as_instances = m_device->newBuffer(
@@ -312,8 +316,10 @@ void GPU_Interface::render(
             frame.buff_as_instances->contents());
 
     size_t iid = 0;
-    for (const auto &[_, packet] : render_packets) {
+    for (auto &[_, packet] : render_packets) {
       surfaces.push_back(packet.get_surface(m_slot));
+      if (packet.has_pending_build(m_slot))
+        rebuilt_packets.push_back(&packet);
 
       MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
           asi_descs[iid];
@@ -326,9 +332,13 @@ void GPU_Interface::render(
     }
   }
 
-  if (frame.buff_surfaces->length() / sizeof(GPU_Types::Surface) < n_packets)
-    frame.buff_surfaces = m_device->newBuffer(
-        n_packets * sizeof(GPU_Types::Surface), MTL::ResourceStorageModeShared);
+  const size_t buff_surfaces_len =
+      (n_packets == 0 ? 1 : n_packets) * sizeof(GPU_Types::Surface);
+  if (!frame.buff_surfaces.exists() ||
+      frame.buff_surfaces->length() < buff_surfaces_len)
+    ;
+  frame.buff_surfaces =
+      m_device->newBuffer(buff_surfaces_len, MTL::ResourceStorageModeShared);
 
   const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
   std::memcpy(frame.buff_as_instance_ct->contents(), &n_packets_u32,
@@ -367,7 +377,6 @@ void GPU_Interface::render(
         frame.tlas.get(), frame.tlas_desc.get(),
         MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
                                 sizes.buildScratchBufferSize));
-    frame.tlas_built = true;
   } else {
     if (frame.buff_scratch->length() < sizes.refitScratchBufferSize)
       frame.buff_scratch = m_device->newBuffer(sizes.refitScratchBufferSize,
@@ -492,6 +501,7 @@ void GPU_Interface::render(
 
   frame.rset->addAllocation(frame.buff_cam.get());
   frame.rset->addAllocation(frame.buff_rt_params.get());
+  frame.rset->addAllocation(frame.buff_surfaces.get());
   frame.rset->addAllocation(frame.tex_rt.get());
   frame.rset->commit();
   frame.cmd_buff->useResidencySet(frame.rset.get());
@@ -521,10 +531,21 @@ void GPU_Interface::render(
   Event<uint32_t> &ev_gpu_completed = m_ev_gpu_completed;
   const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
-      [&frame, &ev_gpu_completed, slot](MTL4::CommitFeedback *) {
-        frame.cmd_alloc->reset();
+      [&frame, &packet_mtx, &ev_gpu_completed, slot, rebuild_tlas,
+       rebuilt_packets](MTL4::CommitFeedback *feedback) {
+        const bool succeeded = !feedback || feedback->error() == nullptr;
+        if (!rebuilt_packets.empty()) {
+          std::lock_guard<std::mutex> packet_lock(packet_mtx);
+          for (Render_Packet *packet : rebuilt_packets)
+            packet->mark_build_committed(slot, succeeded);
+        }
 
+        frame.cmd_alloc->reset();
         std::lock_guard<std::mutex> lock(frame.mtx);
+
+        if (rebuild_tlas && succeeded)
+          frame.tlas_built = true;
+
         if (frame.drawable.exists())
           frame.drawable.smart_release();
 

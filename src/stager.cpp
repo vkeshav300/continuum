@@ -38,8 +38,8 @@ void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
     m_revision.fetch_add(1);
 }
 
-const std::unordered_map<entt::entity, RHI::Render_Packet> &
-Stager::get_render_packets() const {
+std::unordered_map<entt::entity, RHI::Render_Packet> &
+Stager::get_render_packets() {
   return m_packets;
 }
 
@@ -87,8 +87,7 @@ std::mutex &Stager::get_mutex() { return m_mtx; }
 
 void Stager::wait_until_idle() {
   std::unique_lock<std::mutex> lock(m_mtx);
-  m_cv.wait_for(lock, std::chrono::milliseconds(IDLE_TIMEOUT),
-                [&]() { return m_inflight == 0; });
+  m_cv.wait(lock, [&]() { return m_inflight == 0; });
 }
 
 } // namespace CTNM

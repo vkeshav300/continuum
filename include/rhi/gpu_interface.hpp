@@ -61,7 +61,7 @@ public:
 
   void cycle_frame();
   GPU_Context get_gpu_context();
-  void render(const std::unordered_map<entt::entity, Render_Packet> &packets,
+  void render(std::unordered_map<entt::entity, Render_Packet> &packets,
               std::mutex &packet_mtx, const uint64_t packet_revision,
               const entt::registry &reg);
 

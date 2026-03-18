@@ -17,7 +17,8 @@ void Simulator::update(entt::registry &reg) {
   const float dt = _dt.count();
   m_tp_last = now;
 
-  const auto &physics_entities = reg.view<Components::Physics>();
+  const auto &physics_entities =
+      reg.view<Components::Transform, Components::Physics>();
   for (const auto e : physics_entities) {
     auto &&[transform, physics] =
         reg.get<Components::Transform, Components::Physics>(e);

@@ -25,7 +25,7 @@ struct AS_Context {
   MTL_Unique<MTL4::PrimitiveAccelerationStructureDescriptor> as_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> as = nullptr;
 
-  bool as_built = false;
+  bool as_built = false, as_build_pending = false;
 };
 
 class Render_Packet {
@@ -39,6 +39,8 @@ public:
   void update(GPU_Context &gpu_context, const Components::Transform &transform,
               const Components::Mesh &mesh, const Components::Surface &surface);
   bool needs_rebuild(const uint32_t slot, const Components::Mesh &mesh) const;
+  bool has_pending_build(const uint32_t slot) const;
+  void mark_build_committed(const uint32_t slot, const bool succeeded);
 
   const MTL::AccelerationStructure *get_as(const uint32_t slot) const;
   const MTL::PackedFloat4x3 &get_transform(const uint32_t slot) const;

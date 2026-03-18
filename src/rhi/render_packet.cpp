@@ -70,10 +70,11 @@ void Render_Packet::update(GPU_Context &gpu_context,
   as_context.surface = GPU_Types::Surface{
       GPU_Types::vec_pf3{surface.col.x, surface.col.y, surface.col.z}};
 
-  const bool rebuild =
-      !as_context.as_built || needs_rebuild(gpu_context.slot, mesh);
+  const bool rebuild = needs_rebuild(gpu_context.slot, mesh);
 
   if (rebuild) {
+    as_context.as_built = false;
+    as_context.as_build_pending = false;
     as_context.revision = mesh.revision;
     as_context.buff_verticies = gpu_context.device->newBuffer(
         mesh.verticies.data(),
@@ -125,8 +126,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
         as_context.as.get(), as_context.as_desc.get(),
         MTL4::BufferRange::Make(as_context.buff_scratch->gpuAddress(),
                                 sizes.buildScratchBufferSize));
-
-    as_context.as_built = true;
+    as_context.as_build_pending = true;
   } else {
     if (as_context.buff_scratch->length() < sizes.refitScratchBufferSize)
       as_context.buff_scratch = gpu_context.device->newBuffer(
@@ -164,7 +164,19 @@ void Render_Packet::update(GPU_Context &gpu_context,
 
 bool Render_Packet::needs_rebuild(const uint32_t slot,
                                   const Components::Mesh &mesh) const {
-  return !(m_as_contexts[slot].revision == mesh.revision);
+  const AS_Context &as_context = m_as_contexts[slot];
+  return !as_context.as_built || as_context.revision != mesh.revision;
+}
+
+bool Render_Packet::has_pending_build(const uint32_t slot) const {
+  return m_as_contexts[slot].as_build_pending;
+}
+
+void Render_Packet::mark_build_committed(const uint32_t slot,
+                                         const bool succeeded) {
+  AS_Context &as_context = m_as_contexts[slot];
+  as_context.as_build_pending = false;
+  as_context.as_built = succeeded;
 }
 
 const MTL::AccelerationStructure *
