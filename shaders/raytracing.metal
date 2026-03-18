@@ -10,6 +10,7 @@ using namespace CTNM::RHI::GPU_Types;
                             constant Camera &cam [[buffer(1)]],
                             raytracing::instance_acceleration_structure tlas
                             [[buffer(2)]],
+                            constant Surface *surfaces [[buffer(3)]],
                             texture2d<float, access::write> out_tex
                             [[texture(0)]],
                             uint2 tid [[thread_position_in_grid]]) {
@@ -44,7 +45,8 @@ using namespace CTNM::RHI::GPU_Types;
   float3 color = float3(0.0f);
 
   if (result.type == raytracing::intersection_type::triangle) {
-    color = float3(1.0f, 0.0f, 0.0f);
+    const uint uid = result.instance_id;
+    color = normalize(surfaces[uid].col);
   }
 
   out_tex.write(float4(color, 1.0f), tid);

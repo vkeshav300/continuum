@@ -32,6 +32,7 @@ struct Frame_Context {
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
   MTL_Unique<MTL::Buffer> buff_as_instances = nullptr;
   MTL_Unique<MTL::Buffer> buff_as_instance_ct = nullptr;
+  MTL_Unique<MTL::Buffer> buff_surfaces = nullptr;
   MTL_Unique<MTL::Buffer> buff_cam = nullptr;
   MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
 

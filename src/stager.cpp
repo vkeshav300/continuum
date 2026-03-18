@@ -12,20 +12,22 @@ namespace CTNM {
 
 void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
   const auto &renderable_entities =
-      reg.view<Components::Mesh, Components::Transform>();
+      reg.view<Components::Mesh, Components::Transform, Components::Surface>();
 
   std::lock_guard<std::mutex> lock(m_mtx);
   bool packet_added = false;
   for (const auto e : renderable_entities) {
-    const auto &[bbox, transform] =
-        reg.get<Components::Mesh, Components::Transform>(e);
+    const auto &[mesh, transform, surface] =
+        reg.get<Components::Mesh, Components::Transform, Components::Surface>(
+            e);
 
     const auto it = m_packets.find(e);
     if (it != m_packets.end())
-      it->second.update(gpu_context, transform, bbox);
+      it->second.update(gpu_context, transform, mesh, surface);
     else {
       const bool result =
-          m_packets.try_emplace(e, gpu_context, transform, bbox).second;
+          m_packets.try_emplace(e, gpu_context, transform, mesh, surface)
+              .second;
 
       if (!packet_added && result)
         packet_added = true;

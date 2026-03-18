@@ -2,6 +2,7 @@
 #include "components.hpp"
 #include "math_utils.hpp"
 #include "rhi/gpu_context.hpp"
+#include "rhi/gpu_types.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -46,22 +47,29 @@ get_mtl_transform(const CTNM::Components::Transform &transform) {
 
 Render_Packet::Render_Packet(GPU_Context &gpu_context,
                              const Components::Transform &transform,
-                             const Components::Mesh &mesh) {
+                             const Components::Mesh &mesh,
+                             const Components::Surface &surface) {
   for (auto &as_context : m_as_contexts) {
     as_context.as_desc =
         MTL4::PrimitiveAccelerationStructureDescriptor::alloc()->init();
     as_context.as_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   }
 
-  update(gpu_context, transform, mesh);
+  update(gpu_context, transform, mesh, surface);
 }
 
 void Render_Packet::update(GPU_Context &gpu_context,
                            const Components::Transform &transform,
-                           const Components::Mesh &mesh) {
+                           const Components::Mesh &mesh,
+                           const Components::Surface &surface) {
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
   AS_Context &as_context = m_as_contexts[gpu_context.slot];
+
+  as_context.transform = get_mtl_transform(transform);
+  as_context.surface = GPU_Types::Surface{
+      GPU_Types::vec_pf3{surface.col.x, surface.col.y, surface.col.z}};
+
   const bool rebuild =
       !as_context.as_built || needs_rebuild(gpu_context.slot, mesh);
 
@@ -88,8 +96,6 @@ void Render_Packet::update(GPU_Context &gpu_context,
         MTL4::BufferRange::Make(as_context.buff_indicies->gpuAddress(),
                                 as_context.buff_indicies->length()));
   }
-
-  as_context.transform = get_mtl_transform(transform);
 
   MTL4::AccelerationStructureTriangleGeometryDescriptor *as_geom_descs[] = {
       as_context.as_geom_desc.get()};
@@ -169,6 +175,11 @@ Render_Packet::get_as(const uint32_t slot) const {
 const MTL::PackedFloat4x3 &
 Render_Packet::get_transform(const uint32_t slot) const {
   return m_as_contexts[slot].transform;
+}
+
+const GPU_Types::Surface &
+Render_Packet::get_surface(const uint32_t slot) const {
+  return m_as_contexts[slot].surface;
 }
 
 } // namespace CTNM::RHI

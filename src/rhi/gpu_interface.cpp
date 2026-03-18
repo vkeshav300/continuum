@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <AppKit/AppKit.hpp>
 #include <Foundation/Foundation.hpp>
@@ -76,7 +77,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rt_desc->setMaxBufferBindCount(3);
+  argt_rt_desc->setMaxBufferBindCount(4);
   argt_rt_desc->setMaxTextureBindCount(1);
   argt_rt_desc->setMaxSamplerStateBindCount(0);
 
@@ -293,10 +294,13 @@ void GPU_Interface::render(
       packet_revision != frame.revision || !frame.tlas_built;
   frame.revision = packet_revision;
   size_t n_packets;
+  std::vector<GPU_Types::Surface> surfaces;
 
   {
     const std::lock_guard<std::mutex> lock(packet_mtx);
     n_packets = render_packets.size();
+    surfaces.reserve(n_packets);
+
     if (rebuild_tlas)
       frame.buff_as_instances = m_device->newBuffer(
           n_packets *
@@ -309,6 +313,8 @@ void GPU_Interface::render(
 
     size_t iid = 0;
     for (const auto &[_, packet] : render_packets) {
+      surfaces.push_back(packet.get_surface(m_slot));
+
       MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
           asi_descs[iid];
       asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
@@ -319,6 +325,10 @@ void GPU_Interface::render(
       asi_desc.intersectionFunctionTableOffset = 0;
     }
   }
+
+  if (frame.buff_surfaces->length() / sizeof(GPU_Types::Surface) < n_packets)
+    frame.buff_surfaces = m_device->newBuffer(
+        n_packets * sizeof(GPU_Types::Surface), MTL::ResourceStorageModeShared);
 
   const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
   std::memcpy(frame.buff_as_instance_ct->contents(), &n_packets_u32,
@@ -338,6 +348,9 @@ void GPU_Interface::render(
   frame.tlas_sizes_desc->setInstanceDescriptorBuffer(
       frame.buff_as_instances.get());
 
+  frame.rset->addAllocation(frame.buff_as_instances.get());
+  frame.rset->addAllocation(frame.buff_as_instance_ct.get());
+
   const MTL::AccelerationStructureSizes sizes =
       m_device->accelerationStructureSizes(frame.tlas_sizes_desc.get());
 
@@ -346,8 +359,6 @@ void GPU_Interface::render(
                                              MTL::ResourceStorageModePrivate);
     frame.tlas =
         m_device->newAccelerationStructure(sizes.accelerationStructureSize);
-    frame.rset->addAllocation(frame.buff_as_instances.get());
-    frame.rset->addAllocation(frame.buff_as_instance_ct.get());
     frame.rset->addAllocation(frame.buff_scratch.get());
     frame.rset->addAllocation(frame.tlas.get());
     frame.rset->commit();
@@ -366,8 +377,6 @@ void GPU_Interface::render(
         frame.buff_scratch->gpuAddress(), sizes.refitScratchBufferSize);
 
     if (frame.tlas->size() == sizes.accelerationStructureSize) {
-      frame.rset->addAllocation(frame.buff_as_instances.get());
-      frame.rset->addAllocation(frame.buff_as_instance_ct.get());
       frame.rset->addAllocation(frame.buff_scratch.get());
       frame.rset->addAllocation(frame.tlas.get());
       frame.rset->commit();
@@ -378,8 +387,6 @@ void GPU_Interface::render(
     } else {
       MTL_Unique<MTL::AccelerationStructure> tlas_new =
           m_device->newAccelerationStructure(sizes.accelerationStructureSize);
-      frame.rset->addAllocation(frame.buff_as_instances.get());
-      frame.rset->addAllocation(frame.buff_as_instance_ct.get());
       frame.rset->addAllocation(frame.buff_scratch.get());
       frame.rset->addAllocation(frame.tlas.get());
       frame.rset->addAllocation(tlas_new.get());
@@ -397,7 +404,7 @@ void GPU_Interface::render(
   m_ce_as->endEncoding();
   m_ce_as.smart_release();
 
-  // --- Ensure validity of raytracing target texture ---
+  /* Ensure validity of raytracing target texture */
   MTL::Texture *drawable_tex = frame.drawable->texture();
   const NS::UInteger width = drawable_tex->width(),
                      height = drawable_tex->height();
@@ -417,16 +424,16 @@ void GPU_Interface::render(
     }
   }
 
-  // --- Load buffers ---
+  /* Load buffers */
+  const GPU_Types::Raytracing_Params params{frame.tlas.exists() ? 1u : 0u};
+  std::memcpy(frame.buff_rt_params->contents(), &params,
+              sizeof(GPU_Types::Raytracing_Params));
+
   const auto &_cam_view = reg.view<Components::Camera>();
   if (_cam_view.empty()) {
     free_current_frame(true);
     return;
   }
-
-  const GPU_Types::Raytracing_Params params{frame.tlas.exists() ? 1u : 0u};
-  std::memcpy(frame.buff_rt_params->contents(), &params,
-              sizeof(GPU_Types::Raytracing_Params));
 
   const Components::Camera &_cam =
       reg.get<Components::Camera>(_cam_view.front());
@@ -437,11 +444,15 @@ void GPU_Interface::render(
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
   std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
 
+  std::memcpy(frame.buff_surfaces->contents(), surfaces.data(),
+              surfaces.size() * sizeof(GPU_Types::Surface));
+
   frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
   frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
   frame.argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
                                                  : MTL::ResourceID{0},
                              2);
+  frame.argt_rt->setAddress(frame.buff_surfaces->gpuAddress(), 3);
   frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   if (MTL4::ComputeCommandEncoder *ce_rt =
