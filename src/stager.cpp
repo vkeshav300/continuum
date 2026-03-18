@@ -38,8 +38,8 @@ void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
     m_revision.fetch_add(1);
 }
 
-const std::unordered_map<entt::entity, RHI::Render_Packet> &
-Stager::get_render_packets() const {
+std::unordered_map<entt::entity, RHI::Render_Packet> &
+Stager::get_render_packets() {
   return m_packets;
 }
 

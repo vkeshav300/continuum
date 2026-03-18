@@ -23,8 +23,7 @@ public:
 
   void stage(RHI::GPU_Context &gpu_context, const entt::registry &reg);
 
-  const std::unordered_map<entt::entity, RHI::Render_Packet> &
-  get_render_packets() const;
+  std::unordered_map<entt::entity, RHI::Render_Packet> &get_render_packets();
   void decommission_packet(const entt::entity e);
   void attach_decommissioned_packets(const uint32_t frame_id);
   void clear_decommissioned_packets(const uint32_t frame_id);
