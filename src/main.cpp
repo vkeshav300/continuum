@@ -10,6 +10,7 @@ int main(int argc, char *argv[]) {
 
 #include "rhi/gpu_context.hpp"
 #include "rhi/gpu_interface.hpp"
+#include "simulator.hpp"
 #include "stager.hpp"
 #include "window.hpp"
 
@@ -49,6 +50,7 @@ int main(int argc, char *argv[]) {
       CTNM::FB_Size{800, 600}, std::chrono::milliseconds(16))); // 16ms ~ 60fps
   CTNM::RHI::GPU_Interface interface(win);
   CTNM::Stager stager;
+  CTNM::Simulator sim;
 
   const float h = 0.5f;
   entt::entity en1 = reg.create();
@@ -56,6 +58,8 @@ int main(int argc, char *argv[]) {
       en1, CTNM::Math::vec_f3{0.0f, 0.0f, 0.0f},
       CTNM::Math::vec_f3{1.0f, 1.0f, 1.0f},
       CTNM::Math::vec_f4{25.0f, 25.0f, 25.0f, 1.0f});
+  reg.emplace<CTNM::Components::Physics>(en1,
+                                         CTNM::Math::vec_f3{0.0f, -1.5f, 0.0f});
   reg.emplace<CTNM::Components::Mesh>(en1, generate_cube_mesh());
 
   entt::entity cam = reg.create();
@@ -80,6 +84,7 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    sim.update(reg);
     stager.stage(gpu_context, reg);
     interface.render(stager.get_render_packets(), stager.get_mutex(),
                      stager.get_revision(), reg);
