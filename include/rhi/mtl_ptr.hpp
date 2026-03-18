@@ -70,6 +70,14 @@ public:
   MTL_Shared(std::nullptr_t) {}
   MTL_Shared(T *ptr) : m_ptr(ptr) {}
 
+  static MTL_Shared retained(T *ptr) {
+    MTL_Shared shared;
+    if (ptr)
+      ptr->retain();
+    shared.m_ptr = ptr;
+    return shared;
+  }
+
   ~MTL_Shared() { smart_release(); }
 
   MTL_Shared(const MTL_Shared &other) : m_ptr(other.m_ptr) {
@@ -100,10 +108,15 @@ public:
     return *this;
   }
 
+  MTL_Shared &operator=(std::nullptr_t) {
+    smart_release();
+    return *this;
+  }
+
   MTL_Shared &operator=(T *ptr) {
     if (m_ptr != ptr) {
       smart_release();
-      m_ptr = ptr->retain();
+      m_ptr = ptr;
     }
 
     return *this;

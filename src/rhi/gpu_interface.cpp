@@ -263,7 +263,7 @@ GPU_Context GPU_Interface::get_gpu_context() {
   if (!m_ce_as.exists()) {
     if (MTL4::ComputeCommandEncoder *ce_as =
             frame.cmd_buff->computeCommandEncoder())
-      m_ce_as = ce_as;
+      m_ce_as = MTL_Shared<MTL4::ComputeCommandEncoder>::retained(ce_as);
   }
 
   frame.cmd_buff->useResidencySet(frame.rset.get());
