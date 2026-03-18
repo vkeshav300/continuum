@@ -78,7 +78,7 @@ target_link_libraries(
 )
 
 # Build metal shaders into .metallib
-file(GLOB METAL_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/metal/*.metal")
+file(GLOB METAL_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.metal")
 set(AIR_FILES "")
 
 foreach(SHADER ${METAL_SHADERS})

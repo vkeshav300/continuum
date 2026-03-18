@@ -4,10 +4,8 @@
 #include "rhi/render_packet.hpp"
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -16,43 +14,32 @@
 
 namespace CTNM {
 
-class Stager : public std::enable_shared_from_this<Stager> {
-private:
-  uint64_t m_ct = 0;
-
-  std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>>
-      m_packets;
-  std::vector<entt::entity> m_packets_decomissioned;
-
-  mutable std::mutex m_mtx;
-  mutable std::condition_variable m_cv;
-  std::atomic<int> m_inflight = 0;
-
-  std::chrono::time_point<std::chrono::steady_clock> m_tp_last =
-      std::chrono::steady_clock::now();
-  std::chrono::duration<float> m_dt;
-
+class Stager {
 public:
-  /**
-   * @brief Constructs a Stager with empty packet storage and default
-   * synchronization state.
-   *
-   * Initializes internal containers as empty and the in-flight counter to zero.
-   */
   Stager() = default;
-  ~Stager();
+  ~Stager() = default;
 
-  void stage(entt::registry &registry, const RHI::GPU_Context &context);
+  void stage(RHI::GPU_Context &gpu_context, const entt::registry &reg);
 
-  const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
-  get_render_packets() const;
+  std::unordered_map<entt::entity, RHI::Render_Packet> &get_render_packets();
+  void decommission_packet(const entt::entity e);
+  void attach_decommissioned_packets(const uint32_t frame_id);
+  void clear_decommissioned_packets(const uint32_t frame_id);
 
-  void callback_bbox_destroyed(entt::registry &registry, entt::entity e);
-
-  bool is_idle() const;
-  void wait_until_idle() const;
-
+  uint64_t get_revision() const;
   std::mutex &get_mutex();
+  void wait_until_idle();
+
+private:
+  std::unordered_map<entt::entity, RHI::Render_Packet> m_packets;
+  std::unordered_map<uint32_t, std::vector<entt::entity>>
+      m_frame_to_packets_decommissioned;
+  std::vector<entt::entity> m_packets_decommissioned;
+
+  std::mutex m_mtx;
+  std::condition_variable m_cv;
+  std::atomic<uint64_t> m_revision = 0;
+  int m_inflight = 0; // Always protected by m_mtx, no need for atomic
 };
 
 } // namespace CTNM

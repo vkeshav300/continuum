@@ -1,113 +1,103 @@
 #pragma once
+
+#include "../window.hpp"
+#include "event.hpp"
 #include "gpu_context.hpp"
 #include "mtl_ptr.hpp"
 #include "render_packet.hpp"
 
-#include <cstddef>
+#include <array>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
-#include <vector>
-
-#include <GLFW/glfw3.h>
-#include <entt/entt.hpp>
-
-#ifdef __APPLE__
 
 #include <AppKit/AppKit.hpp>
+#include <Foundation/Foundation.hpp>
+#include <GLFW/glfw3.h>
 #include <Metal/Metal.hpp>
 #include <QuartzCore/QuartzCore.hpp>
+#include <entt/entt.hpp>
 
 namespace CTNM::RHI {
 
-enum Return_Code : uint8_t {
-  Normal = 0,
-  Skip,
-  Fatal,
+struct Frame_Context {
+  MTL_Unique<MTL4::CommandBuffer> cmd_buff = nullptr;
+  MTL_Unique<MTL4::CommandAllocator> cmd_alloc = nullptr;
+  MTL_Unique<CA::MetalDrawable> drawable = nullptr;
+  MTL_Shared<MTL::ResidencySet> rset = nullptr;
+
+  MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
+  MTL_Unique<MTL::Buffer> buff_as_instances = nullptr;
+  MTL_Unique<MTL::Buffer> buff_as_instance_ct = nullptr;
+  MTL_Unique<MTL::Buffer> buff_surfaces = nullptr;
+  MTL_Unique<MTL::Buffer> buff_cam = nullptr;
+  MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
+
+  MTL_Unique<MTL::TextureDescriptor> tex_rt_desc = nullptr;
+  MTL_Unique<MTL::Texture> tex_rt = nullptr;
+  MTL_Unique<MTL4::ArgumentTable> argt_rt = nullptr;
+  MTL_Unique<MTL4::ArgumentTable> argt_rndr = nullptr;
+
+  MTL_Unique<MTL4::IndirectInstanceAccelerationStructureDescriptor> tlas_desc =
+      nullptr;
+  MTL_Unique<MTL::IndirectInstanceAccelerationStructureDescriptor>
+      tlas_sizes_desc = nullptr;
+  MTL_Unique<MTL::AccelerationStructure> tlas = nullptr;
+
+  bool ready = true, tlas_built = false;
+  uint64_t revision = 0;
+  std::mutex mtx;
+  std::condition_variable cv;
+  std::string label;
 };
 
 class GPU_Interface {
-private:
-  /* Window interface */
-  GLFWwindow *m_window = nullptr;
-  NS::Window *m_window_ns = nullptr;
-  int m_fb_width = 0, m_fb_height = 0; // Framebuffer width, height
-
-  /* Metal */
-  MTL_Ptr<NS::AutoreleasePool> m_pool_full =
-      nullptr; // Full-scope autorelease pool
-
-  MTL_Ptr<MTL::Device> m_device = nullptr;
-  MTL_Ptr<MTL::CommandQueue> m_cmd_queue = nullptr;
-  MTL_Ptr<MTL::CommandBuffer> m_cmd_buff = nullptr;
-
-  MTL_Ptr<CA::MetalLayer> m_layer = nullptr;
-  MTL_Ptr<CA::MetalDrawable> m_drawable = nullptr;
-  MTL_Ptr<MTL::Texture> m_tex_rt = nullptr;
-
-  MTL_Ptr<MTL::AccelerationStructureCommandEncoder> m_ce_as = nullptr;
-  MTL_Ptr<MTL::ComputeCommandEncoder> m_ce_comp = nullptr;
-  MTL_Ptr<MTL::RenderCommandEncoder> m_ce_rndr = nullptr;
-
-  MTL_Ptr<MTL::Buffer> m_buff_cam = nullptr;
-  MTL_Ptr<MTL::Buffer> m_buff_scene = nullptr;
-  MTL_Ptr<MTL::Buffer> m_buff_tlas_instances = nullptr;
-  MTL_Ptr<MTL::Buffer> m_buff_scratch = nullptr;
-  MTL_Ptr<MTL::Buffer> m_buff_surfaces = nullptr;
-
-  MTL_Ptr<MTL::Library> m_lib = nullptr;
-  MTL_Ptr<MTL::Function> m_fn_k_rt = nullptr; // Kernel raytracer function
-  MTL_Ptr<MTL::Function> m_fn_v_present = nullptr;
-  MTL_Ptr<MTL::Function> m_fn_f_present = nullptr;
-  MTL_Ptr<MTL::Function> m_fn_i_sphere =
-      nullptr; // Sphere intersection function
-  MTL_Ptr<MTL::FunctionHandle> m_fnh_i_sphere = nullptr;
-
-  MTL_Ptr<MTL::ComputePipelineState> m_ps_rt = nullptr; // Raytracing pipeline
-  MTL_Ptr<MTL::RenderPipelineState> m_ps_present = nullptr;
-  MTL_Ptr<MTL::IntersectionFunctionTable> m_ift = nullptr;
-
-  MTL_Ptr<MTL::AccelerationStructure> m_tlas = nullptr;
-  MTL_Ptr<MTL::InstanceAccelerationStructureDescriptor> m_tlas_desc = nullptr;
-  std::vector<MTL::AccelerationStructure *> m_blas_h;
-  std::vector<entt::entity> m_tlas_entities;
-  bool m_rebuild = true;
-  size_t m_tlas_capacity = 0;
-
-  void mtl_load();
-  void mtl_create_buffs();
-  void mtl_create_pipelines();
-  void ensure_rt_target(const NS::UInteger width, const NS::UInteger height);
-
-  static void glfw_error_callback(const int code, const char *description);
-  static void glfw_framebuffer_size_callback(GLFWwindow *window,
-                                             const int width, const int height);
-  void glfw_resize_framebuffer(const int width, const int height);
-  void glfw_create_window(const uint16_t &widht, const uint16_t &height);
-
-  void create_tlas(
-      const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
-          &render_packets);
-
 public:
-  GPU_Interface(const uint16_t &width, const uint16_t &height);
+  GPU_Interface(std::shared_ptr<Window> win);
   ~GPU_Interface();
 
-  void cycle_gpu_context();
-  GPU_Context get_gpu_context() const;
+  void cycle_frame();
+  GPU_Context get_gpu_context();
+  void render(std::unordered_map<entt::entity, Render_Packet> &packets,
+              std::mutex &packet_mtx, const uint64_t packet_revision,
+              const entt::registry &reg);
 
-  void next_drawable();
+  Event<uint32_t> &on_cpu_completed();
+  Event<uint32_t> &on_gpu_completed();
 
-  uint8_t
-  render(const std::unordered_map<entt::entity, std::unique_ptr<Render_Packet>>
-             &render_packets,
-         std::mutex &mtx, const entt::registry &registry);
+private:
+  std::shared_ptr<Window> m_win;
 
-  bool should_close() const;
-  void poll_events() const;
+  MTL_Unique<NS::View> m_metal_view_ns = nullptr;
+  MTL_Unique<NS::AutoreleasePool> m_pool_full = nullptr;
+
+  MTL_Unique<CA::MetalLayer> m_layer = nullptr;
+  MTL_Unique<MTL::ResidencySet> m_rset_layer = nullptr;
+
+  MTL_Shared<MTL::Device> m_device = nullptr;
+  MTL_Unique<MTL::Library> m_lib = nullptr;
+  MTL_Unique<MTL::RenderPipelineState> m_ps_present = nullptr;
+  MTL_Unique<MTL::ComputePipelineState> m_ps_rt = nullptr;
+
+  MTL_Unique<MTL4::CommandQueue> m_cmd_q = nullptr;
+  MTL_Unique<MTL4::RenderPassDescriptor> m_rp_desc = nullptr;
+  MTL_Unique<MTL4::RenderCommandEncoder> m_ce_rndr = nullptr;
+  MTL_Unique<MTL4::ComputeCommandEncoder> m_ce_rt = nullptr;
+  MTL_Shared<MTL4::ComputeCommandEncoder> m_ce_as = nullptr;
+
+  std::unordered_map<std::string, MTL_Unique<MTL::Function>> m_fns;
+
+  Event<uint32_t> m_ev_cpu_completed, m_ev_gpu_completed;
+  std::array<Frame_Context, MAX_FRAMES_INFLIGHT> m_frame_contexts;
+  uint32_t m_slot = 0, m_next_frame = 0;
+  bool skip_frame = false;
+
+  void cb_fb_resized(const FB_Size fb_size);
+
+  void free_current_frame(const bool end_cmd_buff = false);
 };
 
-} // namespace CTNM::RHI
-
-#endif
+}; // namespace CTNM::RHI

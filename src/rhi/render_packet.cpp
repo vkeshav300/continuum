@@ -3,62 +3,29 @@
 #include "math_utils.hpp"
 #include "rhi/gpu_context.hpp"
 #include "rhi/gpu_types.hpp"
-#include "rhi/mtl_ptr.hpp"
 
+#include <cstdint>
 #include <cstring>
 #include <utility>
-
-#ifdef __APPLE__
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <simd/simd.h>
 
-/**
- * @brief Create a Metal AxisAlignedBoundingBox from a sphere AABB.
- *
- * Converts a CTNM::Components::AABB (centered at origin) into an
- * MTL::AxisAlignedBoundingBox by mapping the sphere radius to the box's minimum
- * and maximum corner coordinates.
- *
- * @param bbox Sphere AABB whose `r` field is used as the radius.
- * @return MTL::AxisAlignedBoundingBox Axis-aligned box with min = (-r, -r, -r)
- * and max = (r, r, r).
- */
-static inline MTL::AxisAlignedBoundingBox
-to_mtl_aabb(const CTNM::Components::AABB &bbox) {
-  MTL::AxisAlignedBoundingBox aabb;
-  aabb.min = {-bbox.r, -bbox.r, -bbox.r};
-  aabb.max = {bbox.r, bbox.r, bbox.r};
+namespace CTNM::RHI {
 
-  return aabb;
-}
-
-/**
- * @brief Convert a CTNM Transform into a Metal PackedFloat4x3 transformation
- * matrix.
- *
- * Builds a 4x3 packed matrix where the first three columns contain the rotation
- * matrix with non-uniform scale applied and the fourth column contains the
- * translation. If the rotation axis in `transform.r` has near-zero length, a
- * default X axis and zero rotation angle are used.
- *
- * @param transform Source transform containing `r` (axis-angle), `s`
- * (scale), and `p` (translation).
- * @return MTL::PackedFloat4x3 Packed 4x3 matrix: columns 0..2 = scaled
- * rotation, column 3 = translation.
- */
 static inline MTL::PackedFloat4x3
-to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
-  vector_float3 axis =
-      vector_float3{transform.r.x, transform.r.y, transform.r.z};
-  const bool degenerate_axis = approx_eq(simd::length(axis), 0.0f);
+get_mtl_transform(const CTNM::Components::Transform &transform) {
+  CTNM::Math::vec_f3 axis =
+      CTNM::Math::vec_f3{transform.r.x, transform.r.y, transform.r.z};
+  const bool degenerate_axis =
+      CTNM::Math::approx_eq(CTNM::Math::magnitude(axis), 0.0f);
   if (!degenerate_axis)
-    axis = simd::normalize(axis);
+    axis = CTNM::Math::normalize(axis);
 
   const float angle = degenerate_axis ? 0.0f : transform.r.w;
-  const vector_float3 safe_axis =
-      degenerate_axis ? vector_float3{1.0f, 0.0f, 0.0f} : axis;
+  const CTNM::Math::vec_f3 safe_axis =
+      degenerate_axis ? CTNM::Math::vec_f3{1.0f, 0.0f, 0.0f} : axis;
 
   const simd_quatf quat = simd_quaternion(angle, safe_axis);
   matrix_float3x3 rotation = simd_matrix3x3(quat);
@@ -78,266 +45,153 @@ to_mtl_transformations_matrix(const CTNM::Components::Transform &transform) {
   return MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
 }
 
-static inline CTNM::RHI::GPU_Types::Surface
-to_gpu_surface(const CTNM::Components::Surface &surface) {
-  return CTNM::RHI::GPU_Types::Surface{surface.c};
+Render_Packet::Render_Packet(GPU_Context &gpu_context,
+                             const Components::Transform &transform,
+                             const Components::Mesh &mesh,
+                             const Components::Surface &surface) {
+  for (auto &as_context : m_as_contexts) {
+    as_context.as_desc =
+        MTL4::PrimitiveAccelerationStructureDescriptor::alloc()->init();
+    as_context.as_desc->setUsage(MTL::AccelerationStructureUsageRefit);
+  }
+
+  update(gpu_context, transform, mesh, surface);
 }
 
-namespace CTNM::RHI {
+void Render_Packet::update(GPU_Context &gpu_context,
+                           const Components::Transform &transform,
+                           const Components::Mesh &mesh,
+                           const Components::Surface &surface) {
+  MTL_Unique<NS::AutoreleasePool> pool_limited =
+      NS::AutoreleasePool::alloc()->init();
+  AS_Context &as_context = m_as_contexts[gpu_context.slot];
 
-/**
- * @brief Default destructor for Render_Packet.
- *
- * Releases resources held by Render_Packet according to default behaviour.
- */
-Render_Packet::~Render_Packet() = default;
+  as_context.transform = get_mtl_transform(transform);
+  as_context.surface = GPU_Types::Surface{
+      GPU_Types::vec_pf3{surface.col.x, surface.col.y, surface.col.z}};
 
-/**
- * @brief Constructs a render packet for an axis-aligned bounding box and
- * prepares its GPU resources.
- *
- * Initializes GPU buffers and a bottom-level acceleration structure for the
- * provided bounding box, and computes the Metal transformation matrix directly
- * from the provided transform.
- *
- * @param context GPU context providing device and command encoder used to
- * allocate buffers and build the BLAS.
- * @param bbox AABB that defines the bounding volume used to build the
- * BLAS.
- * @param transform Base transform (position, rotation, scale) used directly to
- * produce the stored Metal transformation matrix.
- */
-Render_Packet_AABB::Render_Packet_AABB(
-    const GPU_Context &context, const CTNM::Components::AABB &bbox,
-    const CTNM::Components::Transform &transform,
-    const CTNM::Components::Surface &surface) {
-  /* Create bounding box buffer */
-  m_buff_aabb = context.device->newBuffer(sizeof(MTL::AxisAlignedBoundingBox),
-                                          MTL::ResourceStorageModeShared);
-  m_ifn_idx = IFN_IDX::Sphere;
+  const bool rebuild = needs_rebuild(gpu_context.slot, mesh);
 
-  /* Create build scratch buffer */
-  create_blas_desc(bbox);
-  MTL::AccelerationStructureSizes sizes =
-      context.device->accelerationStructureSizes(m_blas_desc.get());
+  if (rebuild) {
+    as_context.as_built = false;
+    as_context.as_build_pending = false;
+    as_context.revision = mesh.revision;
+    as_context.buff_verticies = gpu_context.device->newBuffer(
+        mesh.verticies.data(),
+        mesh.verticies.size() * sizeof(Components::Vertex),
+        MTL::ResourceStorageModeShared);
+    as_context.buff_indicies = gpu_context.device->newBuffer(
+        mesh.indicies.data(), mesh.indicies.size() * sizeof(uint32_t),
+        MTL::ResourceStorageModeShared);
 
-  m_buff_scratch = context.device->newBuffer(sizes.buildScratchBufferSize,
-                                             MTL::ResourceStorageModePrivate);
+    as_context.as_geom_desc =
+        MTL4::AccelerationStructureTriangleGeometryDescriptor::alloc()->init();
+    as_context.as_geom_desc->setTriangleCount(mesh.indicies.size() / 3);
+    as_context.as_geom_desc->setVertexFormat(MTL::AttributeFormatFloat3);
+    as_context.as_geom_desc->setVertexStride(sizeof(Components::Vertex));
+    as_context.as_geom_desc->setVertexBuffer(
+        MTL4::BufferRange::Make(as_context.buff_verticies->gpuAddress(),
+                                as_context.buff_verticies->length()));
+    as_context.as_geom_desc->setIndexType(MTL::IndexTypeUInt32);
+    as_context.as_geom_desc->setIndexBuffer(
+        MTL4::BufferRange::Make(as_context.buff_indicies->gpuAddress(),
+                                as_context.buff_indicies->length()));
+  }
 
-  /* Create acceleration structure */
-  m_blas = context.device->newAccelerationStructure(m_blas_desc.get());
+  MTL4::AccelerationStructureTriangleGeometryDescriptor *as_geom_descs[] = {
+      as_context.as_geom_desc.get()};
+  NS::Array *as_geom_desc_array =
+      NS::Array::array(reinterpret_cast<NS::Object **>(as_geom_descs), 1);
+  as_context.as_desc->setGeometryDescriptors(as_geom_desc_array);
 
-  context.ce_as->buildAccelerationStructure(m_blas.get(), m_blas_desc.get(),
-                                            m_buff_scratch.get(), 0);
+  if (!gpu_context.ce_as.exists())
+    return;
 
-  /* Update member data */
-  m_transformations = to_mtl_transformations_matrix(transform);
-  m_surface = to_gpu_surface(surface);
-}
-
-/**
- * @brief Destroys the Render_Packet_AABB and releases its associated GPU/Metal
- * resources.
- *
- * Ensures any owned Metal buffers, acceleration structures, and related GPU
- * resources are released when the packet is destroyed.
- */
-Render_Packet_AABB::~Render_Packet_AABB() {}
-
-/**
- * @brief Accesses the packet's bottom-level acceleration structure (BLAS).
- *
- * @return const MTL_Ptr<MTL::AccelerationStructure>& Reference to the
- * underlying Metal acceleration structure used as the BLAS.
- */
-const MTL_Ptr<MTL::AccelerationStructure> &Render_Packet_AABB::get_as() const {
-  return m_blas;
-}
-
-/**
- * @brief Retrieve the instance function index identifying the geometry's
- * intersection function.
- *
- * @return NS::UInteger The instance/interaction function index used to select
- * the geometry's intersection shader.
- */
-const NS::UInteger Render_Packet_AABB::get_ifn_idx() const { return m_ifn_idx; }
-
-/**
- * @brief Builds a Metal primitive BLAS descriptor and uploads the provided
- * AABB.
- *
- * Constructs and stores a PrimitiveAccelerationStructureDescriptor for the
- * given sphere-based AABB, copies the converted Metal AABB into the GPU AABB
- * buffer, and configures the geometry descriptor (one bounding box, opaque,
- * intersection-function-table offset set to the Sphere index) and the
- * acceleration structure usage to allow refitting.
- *
- * @param bbox AABB whose bounds and radius are used to create the BLAS
- * geometry descriptor and to populate the GPU AABB buffer.
- */
-void Render_Packet_AABB::create_blas_desc(const CTNM::Components::AABB &bbox) {
-  m_blas_desc.smart_release();
-  MTL_Ptr<NS::AutoreleasePool> pool = NS::AutoreleasePool::alloc()->init();
-
-  /* Create geometry descriptor */
-  m_aabb = to_mtl_aabb(bbox);
-  std::memcpy(m_buff_aabb->contents(), &m_aabb,
-              sizeof(m_aabb)); // Copy aabb to buffer
-
-  MTL_Ptr<MTL::AccelerationStructureBoundingBoxGeometryDescriptor> geom_desc =
-      MTL::AccelerationStructureBoundingBoxGeometryDescriptor::alloc()->init();
-  geom_desc->setBoundingBoxBuffer(m_buff_aabb.get());
-  geom_desc->setBoundingBoxCount(1);
-  geom_desc->setOpaque(true);
-  geom_desc->setIntersectionFunctionTableOffset(IFN_IDX::Sphere);
-
-  MTL::AccelerationStructureGeometryDescriptor *geom_descs[] = {
-      geom_desc.get()};
-  NS::Array *geom_array = NS::Array::array(
-      reinterpret_cast<NS::Object **>(geom_descs),
-      1); // m_blas_desc->setGeometryDescriptors requires NS::Array which can
-          // only be composed of NS::Objects, so reinterpret cast is used
-
-  /* Create acceleration structure descriptor */
-  m_blas_desc = MTL::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-  m_blas_desc->setGeometryDescriptors(geom_array);
-  m_blas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
-}
-
-/**
- * @brief Determines whether the acceleration structure must be refitted for a
- * new AABB.
- *
- * Compares the stored Metal AABB with the provided sphere-based AABB (converted
- * to Metal) using approximate equality; treats negligible differences as
- * unchanged.
- *
- * @param bbox_new New sphere-based AABB to compare against the current AABB.
- * @return bool `true` if any min/max component differs beyond the comparison
- * tolerance, `false` otherwise.
- */
-bool Render_Packet_AABB::needs_refit(
-    const CTNM::Components::AABB &bbox_new) const {
-  /* If the bounding box has changed, object needs refit
-   * approx_eq is used to prevent refitting with negligable changes in
-   * bounding box size
-   * */
-  MTL::AxisAlignedBoundingBox aabb_new = to_mtl_aabb(bbox_new);
-  return !(approx_eq(m_aabb.min.x, aabb_new.min.x) &&
-           approx_eq(m_aabb.max.x, aabb_new.max.x) &&
-           approx_eq(m_aabb.min.y, aabb_new.min.y) &&
-           approx_eq(m_aabb.max.y, aabb_new.max.y) &&
-           approx_eq(m_aabb.min.z, aabb_new.min.z) &&
-           approx_eq(m_aabb.max.z, aabb_new.max.z));
-}
-
-/**
- * @brief Rebuilds and refits the bottom-level acceleration structure for the
- * given bounding box.
- *
- * Recreates the BLAS descriptor from `bbox` and issues an in-place refit when
- * possible. Falls back to out-of-place refit only when a larger BLAS allocation
- * is required (or no BLAS exists yet).
- *
- * @param context GPU context providing the device and command encoder used to
- * allocate and refit the BLAS.
- * @param bbox  Sphere AABB that describes the geometry to build/refit the
- * acceleration structure for.
- */
-void Render_Packet_AABB::refit(const GPU_Context &context,
-                               const CTNM::Components::AABB &bbox) {
-  create_blas_desc(bbox);
   const MTL::AccelerationStructureSizes sizes =
-      context.device->accelerationStructureSizes(m_blas_desc.get());
-  const bool needs_scratch_resize =
-      !m_buff_scratch.get() ||
-      m_buff_scratch->length() < sizes.refitScratchBufferSize;
-  if (needs_scratch_resize) {
-    m_buff_scratch = context.device->newBuffer(sizes.refitScratchBufferSize,
-                                               MTL::ResourceStorageModePrivate);
-  }
+      gpu_context.device->accelerationStructureSizes(as_context.as_desc.get());
 
-  if (m_blas.get() && sizes.accelerationStructureSize <= m_blas->size()) {
-    context.ce_as->refitAccelerationStructure(m_blas.get(), m_blas_desc.get(),
-                                              nullptr, m_buff_scratch.get(), 0);
+  if (rebuild) {
+    as_context.buff_scratch = gpu_context.device->newBuffer(
+        sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate);
+    as_context.as = gpu_context.device->newAccelerationStructure(
+        sizes.accelerationStructureSize);
+
+    gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+    gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+    gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+    gpu_context.rset->addAllocation(as_context.as.get());
+    gpu_context.rset->commit();
+
+    gpu_context.ce_as->buildAccelerationStructure(
+        as_context.as.get(), as_context.as_desc.get(),
+        MTL4::BufferRange::Make(as_context.buff_scratch->gpuAddress(),
+                                sizes.buildScratchBufferSize));
+    as_context.as_build_pending = true;
   } else {
-    MTL_Ptr<MTL::AccelerationStructure> blas_new =
-        context.device->newAccelerationStructure(
-            sizes.accelerationStructureSize);
+    if (as_context.buff_scratch->length() < sizes.refitScratchBufferSize)
+      as_context.buff_scratch = gpu_context.device->newBuffer(
+          sizes.refitScratchBufferSize, MTL::ResourceStorageModePrivate);
 
-    if (m_blas.get()) {
-      context.ce_as->refitAccelerationStructure(m_blas.get(), m_blas_desc.get(),
-                                                blas_new.get(),
-                                                m_buff_scratch.get(), 0);
+    const MTL4::BufferRange buff_r_scratch = MTL4::BufferRange::Make(
+        as_context.buff_scratch->gpuAddress(), sizes.refitScratchBufferSize);
+
+    if (as_context.as->size() < sizes.accelerationStructureSize) {
+      MTL_Unique<MTL::AccelerationStructure> as_new =
+          gpu_context.device->newAccelerationStructure(
+              sizes.accelerationStructureSize);
+      gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+      gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+      gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+      gpu_context.rset->addAllocation(as_context.as.get());
+      gpu_context.rset->addAllocation(as_new.get());
+      gpu_context.rset->commit();
+      gpu_context.ce_as->refitAccelerationStructure(
+          as_context.as.get(), as_context.as_desc.get(), as_new.get(),
+          buff_r_scratch);
+      as_context.as = std::move(as_new);
     } else {
-      context.ce_as->buildAccelerationStructure(
-          blas_new.get(), m_blas_desc.get(), m_buff_scratch.get(), 0);
+      gpu_context.rset->addAllocation(as_context.buff_verticies.get());
+      gpu_context.rset->addAllocation(as_context.buff_indicies.get());
+      gpu_context.rset->addAllocation(as_context.buff_scratch.get());
+      gpu_context.rset->addAllocation(as_context.as.get());
+      gpu_context.rset->commit();
+      gpu_context.ce_as->refitAccelerationStructure(
+          as_context.as.get(), as_context.as_desc.get(), as_context.as.get(),
+          buff_r_scratch);
     }
-
-    if (blas_new.get())
-      m_blas = std::move(blas_new);
   }
 }
 
-/**
- * @brief Update the packet to match a new bounding volume and transform.
- *
- * Rebuilds the underlying BLAS if the provided bounding sphere differs from the
- * current one, then updates the stored transformation matrix using the given
- * transform (position/rotation/scale) without additional scaling by the AABB
- * radius.
- *
- * @param bbox New bounding sphere used to determine whether a BLAS refit is
- * required and to rebuild/refit the BLAS when needed.
- * @param transform Base transform used directly for the stored Metal
- * transformation matrix.
- */
-void Render_Packet_AABB::smart_update(
-    const GPU_Context &context, const CTNM::Components::AABB &bbox,
-    const CTNM::Components::Transform &transform,
-    const CTNM::Components::Surface &surface) {
-  if (needs_refit(bbox))
-    refit(context, bbox);
-
-  update_transformations(transform);
-  update_surface(surface);
+bool Render_Packet::needs_rebuild(const uint32_t slot,
+                                  const Components::Mesh &mesh) const {
+  const AS_Context &as_context = m_as_contexts[slot];
+  return !as_context.as_built || as_context.revision != mesh.revision;
 }
 
-/**
- * @brief Update the stored Metal transformation matrix from a CTNM transform.
- *
- * Converts the provided CTNM::Components::Transform into an MTL::PackedFloat4x3
- * matrix and stores it as the packet's current transformation.
- *
- * @param transform Source transform containing position, rotation, and scale.
- */
-void Render_Packet_AABB::update_transformations(
-    const CTNM::Components::Transform &transform) {
-  m_transformations = to_mtl_transformations_matrix(transform);
+bool Render_Packet::has_pending_build(const uint32_t slot) const {
+  return m_as_contexts[slot].as_build_pending;
 }
 
-/**
- * @brief Returns the packed 4x3 Metal transformation matrix for this AABB
- * instance.
- *
- * @return MTL::PackedFloat4x3 The current transformation matrix where the first
- * three columns contain rotation and scale and the fourth column contains
- * translation, in Metal PackedFloat4x3 format.
- */
-MTL::PackedFloat4x3 Render_Packet_AABB::get_transformations() const {
-  return m_transformations;
+void Render_Packet::mark_build_committed(const uint32_t slot,
+                                         const bool succeeded) {
+  AS_Context &as_context = m_as_contexts[slot];
+  as_context.as_build_pending = false;
+  as_context.as_built = succeeded;
 }
 
-void Render_Packet_AABB::update_surface(
-    const CTNM::Components::Surface &surface) {
-  m_surface = {surface.c};
+const MTL::AccelerationStructure *
+Render_Packet::get_as(const uint32_t slot) const {
+  return m_as_contexts[slot].as.get();
 }
 
-const GPU_Types::Surface &Render_Packet_AABB::get_surface() const {
-  return m_surface;
+const MTL::PackedFloat4x3 &
+Render_Packet::get_transform(const uint32_t slot) const {
+  return m_as_contexts[slot].transform;
+}
+
+const GPU_Types::Surface &
+Render_Packet::get_surface(const uint32_t slot) const {
+  return m_as_contexts[slot].surface;
 }
 
 } // namespace CTNM::RHI
-
-#endif

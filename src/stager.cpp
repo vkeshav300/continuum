@@ -1,155 +1,93 @@
 #include "stager.hpp"
-#include "components.hpp"
 #include "rhi/gpu_context.hpp"
 #include "rhi/render_packet.hpp"
 
 #include <chrono>
-#include <memory>
 #include <mutex>
+#include <unordered_map>
 
 #include <entt/entt.hpp>
 
 namespace CTNM {
 
-/**
- * @brief Destroy the Stager and release its owned resources.
- *
- * This default destructor allows member objects (packets, mutex, counters) to
- * be cleaned up by their own destructors.
- */
-Stager::~Stager() {}
+void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
+  const auto &renderable_entities =
+      reg.view<Components::Mesh, Components::Transform, Components::Surface>();
 
-/**
- * @brief Updates or creates render packets for entities that have a bounding
- * sphere and transform, and schedules GPU-synchronized cleanup of packets
- * marked for decommission.
- *
- * Processes all registry entities with Components::AABB and
- * Components::Transform: existing per-entity render packets are updated,
- * missing packets are created, and a completion handler is attached to the
- * provided GPU context's command buffer to remove decomissioned packets and
- * decrement the internal in-flight counter once the GPU work finishes.
- *
- * @param registry EnTT registry containing entity components to stage.
- * @param context GPU context whose command buffer is used to attach the
- * completion handler and to initialize/update render packets.
- */
-void Stager::stage(entt::registry &registry, const RHI::GPU_Context &context) {
-  const auto entities =
-      registry
-          .view<Components::AABB, Components::Transform, Components::Surface>();
+  std::lock_guard<std::mutex> lock(m_mtx);
+  bool packet_added = false;
+  for (const auto e : renderable_entities) {
+    const auto &[mesh, transform, surface] =
+        reg.get<Components::Mesh, Components::Transform, Components::Surface>(
+            e);
 
-  /* Calculate dt (time since last staging) */
-  const auto now = std::chrono::steady_clock::now();
-  const bool first_staging = m_ct == 0;
-  m_dt = now - m_tp_last;
-  const float dt = m_dt.count();
-  m_tp_last = now;
+    const auto it = m_packets.find(e);
+    if (it != m_packets.end())
+      it->second.update(gpu_context, transform, mesh, surface);
+    else {
+      const bool result =
+          m_packets.try_emplace(e, gpu_context, transform, mesh, surface)
+              .second;
 
-  /* Update entities and create render packets */
-  for (const auto &e : entities) {
-    const auto &[bbox, transform, surface] =
-        registry
-            .get<Components::AABB, Components::Transform, Components::Surface>(
-                e);
-
-    const std::lock_guard<std::mutex> lock(m_mtx);
-
-    /* Movement */
-    if (!first_staging && registry.all_of<Components::Physics>(e)) {
-      const auto &phys = registry.get<Components::Physics>(e);
-      transform.p.x += phys.v.x * dt;
-      transform.p.y += phys.v.y * dt;
-      transform.p.z += phys.v.z * dt;
-    }
-
-    if (m_packets.find(e) !=
-        m_packets.end()) { // For entities that already have associated packets
-      m_packets[e]->smart_update(context, bbox, transform, surface);
-    } else { // For new entities
-      m_packets[e] = std::make_unique<RHI::Render_Packet_AABB>(
-          context, bbox, transform, surface);
+      if (!packet_added && result)
+        packet_added = true;
     }
   }
 
-  /* Ensure cleanup of decomission packets syncs with GPU */
-  std::shared_ptr<Stager> self;
-  {
-    const std::lock_guard<std::mutex> lock(m_mtx);
-    m_inflight.fetch_add(1, std::memory_order_relaxed);
-    self = shared_from_this();
-  }
-
-  context.cmd_buff->addCompletedHandler([self](MTL::CommandBuffer * /*cmd*/) {
-    {
-      const std::lock_guard<std::mutex> lock(self->m_mtx);
-      for (auto packet : self->m_packets_decomissioned)
-        self->m_packets.erase(packet);
-
-      self->m_packets_decomissioned.clear();
-      self->m_inflight.fetch_sub(1, std::memory_order_relaxed);
-    }
-    self->m_cv.notify_all();
-  });
-
-  m_ct++;
+  if (packet_added)
+    m_revision.fetch_add(1);
 }
 
-/**
- * @brief Provide read-only access to the current mapping of entities to render
- * packets.
- *
- * @return const std::unordered_map<entt::entity,
- * std::unique_ptr<RHI::Render_Packet>>& A const reference to the internal map
- * that associates each entity with its owned `RHI::Render_Packet`.
- */
-const std::unordered_map<entt::entity, std::unique_ptr<RHI::Render_Packet>> &
-Stager::get_render_packets() const {
+std::unordered_map<entt::entity, RHI::Render_Packet> &
+Stager::get_render_packets() {
   return m_packets;
 }
 
-/**
- * @brief Marks an entity's render packet for decommissioning.
- *
- * Adds the given entity to the internal list of packets to remove; the entry
- * will be removed later when the GPU command buffer signals completion.
- * This operation is performed under internal synchronization.
- *
- * @param registry Registry the entity belongs to (unused but provided as
- * callback context).
- * @param e Entity whose render packet should be scheduled for removal.
- */
-void Stager::callback_bbox_destroyed(entt::registry &registry, entt::entity e) {
+void Stager::decommission_packet(const entt::entity e) {
   const std::lock_guard<std::mutex> lock(m_mtx);
-  m_packets_decomissioned.push_back(e);
+  m_packets_decommissioned.push_back(e);
+  m_inflight++;
+  m_cv.notify_one();
 }
 
-/**
- * @brief Indicates whether the stager has no in-flight staging operations.
- *
- * @return `true` if there are no in-flight staging operations, `false`
- * otherwise.
- */
-bool Stager::is_idle() const {
-  return m_inflight.load(std::memory_order_relaxed) == 0;
+void Stager::attach_decommissioned_packets(const uint32_t frame_id) {
+  const std::lock_guard<std::mutex> lock(m_mtx);
+  if (m_packets_decommissioned.empty())
+    return;
+
+  std::vector<entt::entity> &packets =
+      m_frame_to_packets_decommissioned[frame_id];
+  packets.insert(packets.end(), m_packets_decommissioned.begin(),
+                 m_packets_decommissioned.end());
+  m_packets_decommissioned.clear();
 }
 
-/**
- * @brief Blocks until the stager has no in-flight operations.
- */
-void Stager::wait_until_idle() const {
-  std::unique_lock<std::mutex> lock(m_mtx);
-  m_cv.wait(lock, [this] { return is_idle(); });
+void Stager::clear_decommissioned_packets(const uint32_t frame_id) {
+  const std::lock_guard<std::mutex> lock(m_mtx);
+  const auto it = m_frame_to_packets_decommissioned.find(frame_id);
+  if (it == m_frame_to_packets_decommissioned.end())
+    return;
+
+  const size_t n_packets = it->second.size();
+  if (n_packets == 0)
+    return;
+
+  for (const auto packet : it->second)
+    m_packets.erase(packet);
+
+  m_frame_to_packets_decommissioned.erase(it);
+  m_inflight -= n_packets;
+  m_revision.fetch_add(1);
+  m_cv.notify_one();
 }
 
-/**
- * @brief Accesses the Stager's internal mutex used to synchronize packet state.
- *
- * Provides a reference to the internal mutex that protects the stager's
- * internal data structures (e.g., packet maps and decommission lists).
- *
- * @return std::mutex& Reference to the internal mutex.
- */
+uint64_t Stager::get_revision() const { return m_revision.load(); }
+
 std::mutex &Stager::get_mutex() { return m_mtx; }
+
+void Stager::wait_until_idle() {
+  std::unique_lock<std::mutex> lock(m_mtx);
+  m_cv.wait(lock, [&]() { return m_inflight == 0; });
+}
 
 } // namespace CTNM
