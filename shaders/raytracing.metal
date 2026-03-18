@@ -46,7 +46,7 @@ using namespace CTNM::RHI::GPU_Types;
 
   if (result.type == raytracing::intersection_type::triangle) {
     const uint uid = result.instance_id;
-    color = normalize(surfaces[uid].col);
+    clamp(surfaces[uid].col / 255.0f, 0.0f, 1.0f);
   }
 
   out_tex.write(float4(color, 1.0f), tid);
