@@ -8,11 +8,11 @@ Continuum is a hobby project I started to learn more about low-level rendering o
 ### Running
 **Requirements:**
 - Apple M3+ chip
-- MacOS which supports Metal 4
+- macOS which supports Metal 4
 
 **Instructions:**
 Clone repo and execute the following commands:
-```
+```sh
 mkdir build
 cd build
 cmake ..
@@ -20,4 +20,4 @@ cmake --build .
 ```
 When you are ready to run, enter `./continuum`.
 
-In the future, a pre-compiled .app / dmg installer will be availible to download.
+In the future, a pre-compiled .app / dmg installer will be available to download.
