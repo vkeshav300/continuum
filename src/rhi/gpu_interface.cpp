@@ -442,7 +442,7 @@ void GPU_Interface::render(
   const Components::Camera &_cam =
       reg.get<Components::Camera>(_cam_view.front());
   GPU_Types::Camera cam;
-  const vec_f3 dir = _cam.fp - _cam.p;
+  const CTNM::Math::vec_f3 dir = _cam.fp - _cam.p;
   cam.p = MTL::PackedFloat3{_cam.p.x, _cam.p.y, _cam.p.z};
   cam.dir = MTL::PackedFloat3{dir.x, dir.y, dir.z};
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));

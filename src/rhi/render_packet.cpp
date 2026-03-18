@@ -15,13 +15,16 @@ namespace CTNM::RHI {
 
 static inline MTL::PackedFloat4x3
 get_mtl_transform(const CTNM::Components::Transform &transform) {
-  vec_f3 axis = vec_f3{transform.r.x, transform.r.y, transform.r.z};
-  const bool degenerate_axis = approx_eq(magnitude(axis), 0.0f);
+  CTNM::Math::vec_f3 axis =
+      CTNM::Math::vec_f3{transform.r.x, transform.r.y, transform.r.z};
+  const bool degenerate_axis =
+      CTNM::Math::approx_eq(CTNM::Math::magnitude(axis), 0.0f);
   if (!degenerate_axis)
-    axis = normalize(axis);
+    axis = CTNM::Math::normalize(axis);
 
   const float angle = degenerate_axis ? 0.0f : transform.r.w;
-  const vec_f3 safe_axis = degenerate_axis ? vec_f3{1.0f, 0.0f, 0.0f} : axis;
+  const CTNM::Math::vec_f3 safe_axis =
+      degenerate_axis ? CTNM::Math::vec_f3{1.0f, 0.0f, 0.0f} : axis;
 
   const simd_quatf quat = simd_quaternion(angle, safe_axis);
   matrix_float3x3 rotation = simd_matrix3x3(quat);

@@ -1,3 +1,13 @@
+#ifndef __APPLE__
+
+#include <exception>
+
+int main(int argc, char *argv[]) {
+  throw std::runtime_error("Application requires Apple system to run.");
+}
+
+#else
+
 #include "rhi/gpu_context.hpp"
 #include "rhi/gpu_interface.hpp"
 #include "stager.hpp"
@@ -42,9 +52,10 @@ int main(int argc, char *argv[]) {
 
   const float h = 0.5f;
   entt::entity en1 = reg.create();
-  reg.emplace<CTNM::Components::Transform>(en1, vec_f3{0.0f, 0.0f, 0.0f},
-                                           vec_f3{1.0f, 1.0f, 1.0f},
-                                           vec_f4{25.0f, 25.0f, 25.0f, 1.0f});
+  reg.emplace<CTNM::Components::Transform>(
+      en1, CTNM::Math::vec_f3{0.0f, 0.0f, 0.0f},
+      CTNM::Math::vec_f3{1.0f, 1.0f, 1.0f},
+      CTNM::Math::vec_f4{25.0f, 25.0f, 25.0f, 1.0f});
   reg.emplace<CTNM::Components::Mesh>(en1, generate_cube_mesh());
 
   entt::entity cam = reg.create();
@@ -84,3 +95,5 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
+
+#endif
