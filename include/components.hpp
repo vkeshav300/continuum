@@ -8,23 +8,23 @@
 namespace CTNM::Components {
 
 struct Camera {
-  CTNM::Math::vec_f3 p = {-5.0f, 0.0f, 0.0f}; // Position
-  CTNM::Math::vec_f3 fp = {0.0f, 0.0f, 0.0f}; // Focused position
+  Math::vec_f3 p = {-5.0f, 0.0f, 0.0f}; // Position
+  Math::vec_f3 fp = {0.0f, 0.0f, 0.0f}; // Focused position
   float fov = 120.0f;
 };
 
 struct Transform {
-  CTNM::Math::vec_f3 p = {0.0f, 0.0f, 0.0f};       // Position
-  CTNM::Math::vec_f3 s = {1.0f, 1.0f, 1.0f};       // Scale
-  CTNM::Math::vec_f4 r = {0.0f, 0.0f, 0.0f, 0.0f}; // Rotation
+  Math::vec_f3 p = {0.0f, 0.0f, 0.0f};       // Position
+  Math::vec_f3 s = {1.0f, 1.0f, 1.0f};       // Scale
+  Math::vec_f4 r = {0.0f, 0.0f, 0.0f, 0.0f}; // Rotation
 };
 
 struct Physics {
-  CTNM::Math::vec_f3 v = {0.0f, 0.0f, 0.0f}; // Velocity
+  Math::vec_f3 v = {0.0f, 0.0f, 0.0f}; // Velocity
 };
 
 struct Vertex {
-  CTNM::Math::vec_f3 p = {0.0f, 0.0f, 0.0f};
+  Math::vec_f3 p = {0.0f, 0.0f, 0.0f}; // Position
 };
 
 struct Mesh {
@@ -34,7 +34,7 @@ struct Mesh {
 };
 
 struct Surface {
-  CTNM::Math::vec_f3 col;
+  Math::vec_f3 color;
 };
 
 } // namespace CTNM::Components

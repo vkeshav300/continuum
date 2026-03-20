@@ -12,9 +12,10 @@
 namespace CTNM::RHI {
 
 struct AS_Context {
+  bool as_built = false, as_build_pending = false;
   uint64_t revision = 0;
-  MTL::PackedFloat4x3 transform;
   GPU_Types::Surface surface;
+  MTL::PackedFloat4x3 transform;
 
   MTL_Unique<MTL::Buffer> buff_verticies = nullptr;
   MTL_Unique<MTL::Buffer> buff_indicies = nullptr;
@@ -24,8 +25,6 @@ struct AS_Context {
       as_geom_desc = nullptr;
   MTL_Unique<MTL4::PrimitiveAccelerationStructureDescriptor> as_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> as = nullptr;
-
-  bool as_built = false, as_build_pending = false;
 };
 
 class Render_Packet {

@@ -68,7 +68,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
 
   as_context.transform = get_mtl_transform(transform);
   as_context.surface = GPU_Types::Surface{
-      GPU_Types::vec_pf3{surface.col.x, surface.col.y, surface.col.z}};
+      GPU_Types::vec_pf3{surface.color.x, surface.color.y, surface.color.z}};
 
   const bool rebuild = needs_rebuild(gpu_context.slot, mesh);
 

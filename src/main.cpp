@@ -66,7 +66,8 @@ int main(int argc, char *argv[]) {
 
   entt::entity en2 = reg.create();
   reg.emplace<CTNM::Components::Transform>(
-      en2, CTNM::Math::vec_f3{-2.0f, -2.0f, -2.0f});
+      en2, CTNM::Math::vec_f3{-2.0f, -2.0f, -2.0f},
+      CTNM::Math::vec_f3{1.0f, 1.75f, 1.0f});
   reg.emplace<CTNM::Components::Mesh>(en2, generate_cube_mesh());
   reg.emplace<CTNM::Components::Surface>(
       en2, CTNM::Math::vec_f3{0.0f, 0.0f, 255.0f});
