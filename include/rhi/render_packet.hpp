@@ -12,10 +12,11 @@
 namespace CTNM::RHI {
 
 struct AS_Context {
-  bool as_built = false, as_build_pending = false;
+  bool as_built = false;
   uint64_t revision = 0;
-  GPU_Types::Surface surface;
+
   MTL::PackedFloat4x3 transform;
+  GPU_Types::Surface surface;
 
   MTL_Unique<MTL::Buffer> buff_verticies = nullptr;
   MTL_Unique<MTL::Buffer> buff_indicies = nullptr;
@@ -37,9 +38,7 @@ public:
 
   void update(GPU_Context &gpu_context, const Components::Transform &transform,
               const Components::Mesh &mesh, const Components::Surface &surface);
-  bool needs_rebuild(const uint32_t slot, const Components::Mesh &mesh) const;
-  bool has_pending_build(const uint32_t slot) const;
-  void mark_build_committed(const uint32_t slot, const bool succeeded);
+  bool build_required(const uint32_t slot, const Components::Mesh &mesh) const;
 
   const MTL::AccelerationStructure *get_as(const uint32_t slot) const;
   const MTL::PackedFloat4x3 &get_transform(const uint32_t slot) const;
@@ -47,6 +46,11 @@ public:
 
 private:
   std::array<AS_Context, MAX_FRAMES_INFLIGHT> m_as_contexts;
+
+  void subfn_update_write_transform(const uint32_t slot,
+                                    const Components::Transform &transform);
+  void subfn_update_build_as(GPU_Context &gpu_context, AS_Context &as_context,
+                             const Components::Mesh &mesh);
 };
 
 } // namespace CTNM::RHI
