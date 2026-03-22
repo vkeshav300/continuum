@@ -24,6 +24,13 @@
 namespace CTNM::RHI {
 
 struct Frame_Context {
+  bool ready = true, tlas_built = false;
+  GPU_Types::Raytracing_Config rt_config;
+  uint64_t revision = 0;
+  std::mutex mtx;
+  std::condition_variable cv;
+  std::string label;
+
   MTL_Unique<MTL4::CommandBuffer> cmd_buff = nullptr;
   MTL_Unique<MTL4::CommandAllocator> cmd_alloc = nullptr;
   MTL_Unique<CA::MetalDrawable> drawable = nullptr;
@@ -45,12 +52,6 @@ struct Frame_Context {
   MTL_Unique<MTL4::IndirectInstanceAccelerationStructureDescriptor> tlas_desc =
       nullptr;
   MTL_Unique<MTL::AccelerationStructure> tlas = nullptr;
-
-  bool ready = true, tlas_built = false;
-  uint64_t revision = 0;
-  std::mutex mtx;
-  std::condition_variable cv;
-  std::string label;
 };
 
 class GPU_Interface {

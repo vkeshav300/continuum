@@ -100,7 +100,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                          MTL::ResourceStorageModeShared);
     frame.buff_rt_params = m_device->newBuffer(
-        sizeof(GPU_Types::Raytracing_Params), MTL::ResourceStorageModeShared);
+        sizeof(GPU_Types::Raytracing_Config), MTL::ResourceStorageModeShared);
 
     frame.tex_rt_desc = MTL::TextureDescriptor::alloc()->init();
     frame.tex_rt_desc->setTextureType(MTL::TextureType2D);
@@ -115,6 +115,12 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
     frame.argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
     frame.argt_rndr.validate();
+
+    frame.rt_config.max_bounces = 6;
+    frame.rt_config.t_max = 1000.0f;
+    frame.rt_config.t_min = 1.0f;
+    frame.rt_config.color_bkg = GPU_Types::vec_pf3{0.0f, 0.0f, 0.0f};
+    frame.rt_config.color_ambient = GPU_Types::vec_pf3{255.0f, 255.0f, 255.0f};
   }
 
   m_lib = m_device->newDefaultLibrary();
@@ -199,14 +205,13 @@ void GPU_Interface::cycle_frame() {
   frame.rset->removeAllAllocations();
   frame.rset->commit();
 
-  if (CA::MetalDrawable *drawable = m_layer->nextDrawable())
-    frame.drawable = drawable->retain();
-
+  frame.drawable = m_layer->nextDrawable();
   if (!frame.drawable.exists()) {
     free_current_frame(false);
     skip_frame = true;
     return;
   }
+  frame.drawable->retain();
 
   m_cmd_q->wait(frame.drawable.get());
 
@@ -217,6 +222,7 @@ void GPU_Interface::cycle_frame() {
     return;
   }
 
+  frame.rt_config.emissive_count = 0;
   frame.cmd_buff->beginCommandBuffer(frame.cmd_alloc.get());
   frame.label = "Frame " + std::to_string(m_win->get_frame_num());
   frame.cmd_buff->setLabel(
@@ -271,18 +277,19 @@ void GPU_Interface::subfn_render_process_packets(
     const MTL::PackedFloat4x3 &transform = packet.get_transform(m_slot);
     surfaces.push_back(packet.get_surface(m_slot));
 
-    if (surface.emission_strength != 0)
+    if (surface.emission_strength != 0) {
       emissives.emplace_back(
           iid, transform[3]); // World space position stored in col3
+      frame.rt_config.emissive_count++;
+    }
 
     MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
         asi_descs[iid];
     asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
-    asi_desc.userID = iid++;
+    asi_desc.userID = iid++; // instance_id GPU-side
     asi_desc.transformationMatrix = transform;
     asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
     asi_desc.mask = 0xFF;
-    asi_desc.intersectionFunctionTableOffset = 0;
   }
 }
 
@@ -367,9 +374,9 @@ void GPU_Interface::subfn_render_load_rt_buffers(
     Frame_Context &frame, const entt::registry &reg,
     std::vector<GPU_Types::Surface> &surfaces,
     std::vector<GPU_Types::Emissive_Data> &emissives) {
-  const GPU_Types::Raytracing_Params params{frame.tlas.exists() ? 1u : 0u};
-  std::memcpy(frame.buff_rt_params->contents(), &params,
-              sizeof(GPU_Types::Raytracing_Params));
+  frame.rt_config.has_scene = frame.tlas.exists() ? 1u : 0u;
+  std::memcpy(frame.buff_rt_params->contents(), &frame.rt_config,
+              sizeof(GPU_Types::Raytracing_Config));
 
   const auto &_cam_view = reg.view<Components::Camera>();
   if (_cam_view.empty()) {
@@ -470,6 +477,7 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
 
+  /* Get frame */
   if (skip_frame)
     return;
 
@@ -477,7 +485,7 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   frame.rset->commit(); // Render_Packet allocations need to be commited
   frame.cmd_buff->useResidencySet(frame.rset.get());
 
-  /* Top level acceleration structure (TLAS) */
+  /* Process top level acceleration structure (TLAS) */
   const bool build_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
   frame.revision = packet_revision;

@@ -25,10 +25,10 @@ using vec_pf3 = MTL::PackedFloat3;
 
 #endif
 
-struct Raytracing_Params {
+struct Raytracing_Config {
   uint32_t has_scene, max_bounces, emissive_count;
   float ambient_intensity, t_min, t_max, shadow_bias;
-  vec_pf3 ambient_color;
+  vec_pf3 color_bkg, color_ambient;
 };
 
 struct Camera {

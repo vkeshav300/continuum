@@ -5,8 +5,12 @@
 
 using namespace metal;
 
+inline float3 format_color(const float3 color) {
+  return clamp(color / 255.0f, 0.0f, 1.0f);
+}
+
 [[kernel]] void k_raytracer(
-    constant CTNM::RHI::GPU_Types::Raytracing_Params &config [[buffer(0)]],
+    constant CTNM::RHI::GPU_Types::Raytracing_Config &config [[buffer(0)]],
     constant CTNM::RHI::GPU_Types::Camera &cam [[buffer(1)]],
     raytracing::instance_acceleration_structure tlas [[buffer(2)]],
     constant CTNM::RHI::GPU_Types::Surface *surfaces [[buffer(3)]],
@@ -35,17 +39,19 @@ using namespace metal;
   raytracing::ray ray;
   ray.origin = float3(cam.p);
   ray.direction = normalize(forward * cam.fl + right * film.x + up * film.y);
-  ray.min_distance = 0.01f;
-  ray.max_distance = 1000.0f;
+  ray.min_distance = config.t_min;
+  ray.max_distance = config.t_max;
 
   raytracing::intersector<raytracing::instancing> intersector;
   const raytracing::intersection_result<raytracing::instancing> result =
       intersector.intersect(ray, tlas);
-  float3 color = float3(0.0f);
+  float3 color = format_color(config.color_bkg);
 
   if (result.type == raytracing::intersection_type::triangle) {
     const uint iid = result.instance_id;
-    color = clamp(surfaces[iid].color / 255.0f, 0.0f, 1.0f);
+    // const float t = result.distance;
+
+    color = format_color(surfaces[iid].color);
   }
 
   out_tex.write(float4(color, 1.0f), tid);

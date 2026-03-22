@@ -71,6 +71,8 @@ int main(int argc, char *argv[]) {
   reg.emplace<CTNM::Components::Mesh>(en2, generate_cube_mesh());
   reg.emplace<CTNM::Components::Surface>(
       en2, CTNM::Math::vec_f3{0.0f, 0.0f, 255.0f});
+  reg.emplace<CTNM::Components::Physics>(en2,
+                                         CTNM::Math::vec_f3{1.0f, 1.0f, -1.0f});
 
   entt::entity cam = reg.create();
   reg.emplace<CTNM::Components::Camera>(cam);
