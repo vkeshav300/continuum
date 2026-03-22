@@ -15,7 +15,7 @@ Window::Window(const FB_Size &fb_size,
     : m_target_frame_len(target_frame_len) {
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
   if (!glfwInit())
-    throw std::runtime_error("Critical: glfwInit");
+    throw std::runtime_error("Window: glfwInit failed");
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_win = glfwCreateWindow(fb_size.w, fb_size.h, "Continuum", nullptr, nullptr);

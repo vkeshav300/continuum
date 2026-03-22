@@ -43,8 +43,6 @@ struct Frame_Context {
 
   MTL_Unique<MTL4::IndirectInstanceAccelerationStructureDescriptor> tlas_desc =
       nullptr;
-  MTL_Unique<MTL::IndirectInstanceAccelerationStructureDescriptor>
-      tlas_sizes_desc = nullptr;
   MTL_Unique<MTL::AccelerationStructure> tlas = nullptr;
 
   bool ready = true, tlas_built = false;
@@ -71,7 +69,7 @@ public:
 private:
   std::shared_ptr<Window> m_win;
 
-  MTL_Unique<NS::View> m_metal_view_ns = nullptr;
+  NS::View *m_metal_view_ns = nullptr;
   MTL_Unique<NS::AutoreleasePool> m_pool_full = nullptr;
 
   MTL_Unique<CA::MetalLayer> m_layer = nullptr;
@@ -97,7 +95,24 @@ private:
 
   void cb_fb_resized(const FB_Size fb_size);
 
-  void free_current_frame(const bool end_cmd_buff = false);
+  void free_current_frame(const bool end_cmd_buff);
+
+  void subfn_render_process_packets(
+      Frame_Context &frame,
+      const std::unordered_map<entt::entity, Render_Packet> &packets,
+      std::mutex &packet_mtx, size_t &n_packets, const bool build_tlas,
+      std::vector<GPU_Types::Surface> &surfaces);
+  void subfn_render_build_tlas(Frame_Context &frame,
+                               const MTL::AccelerationStructureSizes &sizes);
+  void subfn_render_refit_tlas(Frame_Context &frame,
+                               const MTL::AccelerationStructureSizes &sizes);
+  bool subfn_render_validate_drawable_texture(Frame_Context &frame);
+  void subfn_render_load_rt_buffers(Frame_Context &frame,
+                                    const entt::registry &reg,
+                                    std::vector<GPU_Types::Surface> &surfaces);
+  void subfn_render_dispatch_rt_kernel(Frame_Context &frame);
+  void subfn_render_submit_cmd_buff(Frame_Context &Frame,
+                                    const bool build_tlas);
 };
 
 }; // namespace CTNM::RHI

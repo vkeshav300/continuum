@@ -36,7 +36,7 @@ struct Camera {
 };
 
 struct Surface {
-  vec_pf3 col;
+  vec_pf3 color;
 };
 
 } // namespace CTNM::RHI::GPU_Types
