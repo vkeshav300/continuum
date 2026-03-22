@@ -1,6 +1,6 @@
 #ifndef __APPLE__
 
-#include <exception>
+#include <stdexcept>
 
 int main(int argc, char *argv[]) {
   throw std::runtime_error("Application requires Apple system to run.");

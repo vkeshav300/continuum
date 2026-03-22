@@ -7,12 +7,12 @@
 #include "rhi/render_packet.hpp"
 #include "window.hpp"
 
+#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -36,14 +36,9 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     : m_win(std::move(win)), m_pool_full(NS::AutoreleasePool::alloc()->init()),
       m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()->retain()) {
-  if (!m_device.exists())
-    throw std::runtime_error("Critical: MTL::CreateSystemDefaultDevice");
-
-  if (!m_device->supportsFamily(MTL::GPUFamilyMetal4))
-    throw std::runtime_error("Critical: device does not support Metal 4");
-
-  if (!m_device->supportsRaytracing())
-    throw std::runtime_error("Critical: device does not support raytracing");
+  assert(m_device.exists());
+  assert(m_device->supportsFamily(MTL::GPUFamilyMetal4));
+  assert(m_device->supportsRaytracing());
 
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
@@ -61,13 +56,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   m_win->on_fb_resized().connect<&GPU_Interface::cb_fb_resized>(*this);
 
   m_cmd_q = m_device->newMTL4CommandQueue();
-  if (!m_cmd_q.exists())
-    throw std::runtime_error("Failed: MTL::Device::newMTL4CommandQueue");
+  assert(m_cmd_q.exists());
 
-  if (MTL::ResidencySet *rset_layer = m_layer->residencySet())
-    m_rset_layer = rset_layer->retain();
-  if (!m_rset_layer.exists())
-    throw std::runtime_error("Failed: CA::MetalLayer::residencySet");
+  m_rset_layer = m_layer->residencySet();
+  assert(m_rset_layer.exists());
   m_cmd_q->addResidencySet(m_rset_layer.get());
 
   NS::Error *err = nullptr;
@@ -89,12 +81,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   for (auto &frame : m_frame_contexts) {
     frame.cmd_alloc = m_device->newCommandAllocator();
-    if (!frame.cmd_alloc.exists())
-      throw std::runtime_error("Failed: MTL::Device::newCommandAllocator()");
+    assert(frame.cmd_alloc.exists());
 
     frame.rset = m_device->newResidencySet(rset_desc.get(), &err);
-    if (!frame.rset.exists())
-      throw std::runtime_error("Failed: MTL::Device::newResidencySet");
+    assert(frame.rset.exists());
 
     frame.tlas_desc =
         MTL4::IndirectInstanceAccelerationStructureDescriptor::alloc()->init();
@@ -120,24 +110,19 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
                                 MTL::TextureUsageShaderWrite);
 
     frame.argt_rt = m_device->newArgumentTable(argt_rt_desc.get(), &err);
-    if (!frame.argt_rt.exists())
-      throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rt");
+    assert(frame.argt_rt.exists());
 
     frame.argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
-    if (!frame.argt_rndr.exists())
-      throw std::runtime_error("Failed: MTL::Device::newArgumentTable, rndr");
+    assert(frame.argt_rndr.exists());
   }
 
   m_lib = m_device->newDefaultLibrary();
-  if (!m_lib.exists())
-    throw std::runtime_error("Failed: MTL::Device::newDefaultLibrary");
+  assert(m_lib.exists());
 
   for (const std::string fn_name : {"v_present", "f_present", "k_raytracer"}) {
     m_fns[fn_name] = m_lib->newFunction(NS::String::string(
         fn_name.data(), NS::StringEncoding::UTF8StringEncoding));
-    if (!m_fns[fn_name].exists())
-      throw std::runtime_error(
-          std::string("Failed: MTL::Library::newFunction, ") + fn_name);
+    assert(m_fns[fn_name].exists());
   }
 
   MTL_Unique<MTL::ComputePipelineDescriptor> ps_rt_desc =
@@ -146,8 +131,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   m_ps_rt = m_device->newComputePipelineState(
       ps_rt_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
-  if (!m_ps_rt.exists())
-    throw std::runtime_error("Failed: MTL::Device::newComputePipelineState");
+  assert(m_ps_rt.exists());
 
   MTL_Unique<MTL::RenderPipelineDescriptor> ps_present_desc =
       MTL::RenderPipelineDescriptor::alloc()->init();
@@ -156,8 +140,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   ps_present_desc->colorAttachments()->object(0)->setPixelFormat(
       MTL::PixelFormatBGRA8Unorm);
   m_ps_present = m_device->newRenderPipelineState(ps_present_desc.get(), &err);
-  if (!m_ps_present.exists())
-    throw std::runtime_error("Failed: MTL::Device::newRenderPipelineState");
+  assert(m_ps_present.exists());
 
   m_rp_desc = MTL4::RenderPassDescriptor::alloc()->init();
   m_rp_desc->setDefaultRasterSampleCount(1);
