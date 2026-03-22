@@ -13,6 +13,7 @@ namespace CTNM::RHI::GPU_Types {
 #ifdef __METAL_VERSION__
 
 using vec_pf3 = packed_float3;
+using uint32_t = uint;
 
 struct Present_Vertex_Out {
   float4 p [[position]];
@@ -26,7 +27,7 @@ using vec_pf3 = MTL::PackedFloat3;
 #endif
 
 struct Raytracing_Config {
-  uint32_t has_scene, max_bounces, emissive_count;
+  uint32_t max_bounces, emissive_count;
   float ambient_intensity, t_min, t_max, shadow_bias;
   vec_pf3 color_bkg, color_ambient;
 };
@@ -45,6 +46,14 @@ struct Surface {
 struct Emissive_Data {
   uint32_t instance_id; // Used to index surface buffer
   vec_pf3 p_ws;         // Position (world space)
+};
+
+struct Vertex {
+  vec_pf3 p, n;
+};
+
+struct Instance_Metadata {
+  uint32_t offset_vertex, offset_index;
 };
 
 } // namespace CTNM::RHI::GPU_Types

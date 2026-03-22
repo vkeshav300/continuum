@@ -95,7 +95,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
         sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor));
     frame.tlas_desc->setUsage(MTL::AccelerationStructureUsageRefit);
 
-    frame.buff_as_instance_ct =
+    frame.buff_asi_ct =
         m_device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
     frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                          MTL::ResourceStorageModeShared);
@@ -252,24 +252,40 @@ GPU_Context GPU_Interface::get_gpu_context() {
   return GPU_Context{m_slot, skip_frame, m_device, m_ce_as, frame.rset};
 }
 
-void GPU_Interface::subfn_render_process_packets(
-    Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
-    size_t &n_packets, const bool build_tlas,
-    std::vector<GPU_Types::Surface> &surfaces,
-    std::vector<GPU_Types::Emissive_Data> &emissives) {
-  const std::lock_guard<std::mutex> lock(packet_mtx);
-  n_packets = packets.size();
-  surfaces.reserve(n_packets);
-
+void GPU_Interface::subfn_render_stage_buffers(Frame_Context &frame,
+                                               const size_t n_packets,
+                                               const bool build_tlas) {
   if (build_tlas)
-    frame.buff_as_instances = m_device->newBuffer(
+    frame.buff_asi = m_device->newBuffer(
         n_packets *
             sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor),
         MTL::ResourceStorageModeShared);
 
+  const size_t factor = n_packets == 0 ? 1 : n_packets;
+  const size_t buff_surfaces_len = factor * sizeof(GPU_Types::Surface);
+  if (!frame.buff_surfaces.exists() ||
+      frame.buff_surfaces->length() < buff_surfaces_len)
+    frame.buff_surfaces =
+        m_device->newBuffer(buff_surfaces_len, MTL::ResourceStorageModeShared);
+
+  const size_t buff_emissives_len = factor * sizeof(GPU_Types::Emissive_Data);
+  if (!frame.buff_emissives.exists() ||
+      frame.buff_emissives->length() < buff_emissives_len)
+    frame.buff_emissives =
+        m_device->newBuffer(buff_emissives_len, MTL::ResourceStorageModeShared);
+}
+
+void GPU_Interface::subfn_render_process_packets(
+    Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
+    const bool build_tlas, std::vector<GPU_Types::Surface> &surfaces,
+    std::vector<GPU_Types::Emissive_Data> &emissives) {
+  const std::lock_guard<std::mutex> lock(packet_mtx);
+  const size_t n_packets = packets.size();
+  surfaces.reserve(n_packets);
+
   MTL::IndirectAccelerationStructureInstanceDescriptor *asi_descs =
       static_cast<MTL::IndirectAccelerationStructureInstanceDescriptor *>(
-          frame.buff_as_instances->contents());
+          frame.buff_asi->contents());
 
   uint32_t iid = 0;
   for (auto &[_, packet] : packets) {
@@ -291,10 +307,55 @@ void GPU_Interface::subfn_render_process_packets(
     asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
     asi_desc.mask = 0xFF;
   }
+
+  const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
+  std::memcpy(frame.buff_asi_ct->contents(), &n_packets_u32, sizeof(uint32_t));
+  frame.tlas_desc->setMaxInstanceCount(static_cast<NS::UInteger>(n_packets));
+  frame.tlas_desc->setInstanceCountBuffer(MTL4::BufferRange::Make(
+      frame.buff_asi_ct->gpuAddress(), sizeof(uint32_t)));
+  frame.tlas_desc->setInstanceDescriptorBuffer(MTL4::BufferRange::Make(
+      frame.buff_asi->gpuAddress(),
+      n_packets *
+          sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
+
+  frame.rset->addAllocation(frame.buff_asi_ct.get());
+  frame.rset->addAllocation(frame.buff_asi.get());
 }
 
-void GPU_Interface::subfn_render_build_tlas(
-    Frame_Context &frame, const MTL::AccelerationStructureSizes &sizes) {
+void GPU_Interface::subfn_render_load_buffers(
+    Frame_Context &frame, const entt::registry &reg,
+    std::vector<GPU_Types::Surface> &surfaces,
+    std::vector<GPU_Types::Emissive_Data> &emissives) {
+  const auto &_cam_view = reg.view<Components::Camera>();
+  const Components::Camera &_cam =
+      _cam_view.empty() ? Components::Camera{}
+                        : reg.get<Components::Camera>(_cam_view.front());
+  const CTNM::Math::vec_f3 dir = _cam.fp - _cam.p;
+  GPU_Types::Camera cam;
+  cam.p = Utils::pack(_cam.p);
+  cam.dir = Utils::pack(dir);
+  cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
+
+  std::memcpy(frame.buff_rt_params->contents(), &frame.rt_config,
+              sizeof(GPU_Types::Raytracing_Config));
+  std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
+  std::memcpy(frame.buff_surfaces->contents(), surfaces.data(),
+              surfaces.size() * sizeof(GPU_Types::Surface));
+  std::memcpy(frame.buff_emissives->contents(), emissives.data(),
+              emissives.size() * sizeof(GPU_Types::Emissive_Data));
+
+  frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
+  frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
+  frame.argt_rt->setResource(frame.tlas->gpuResourceID(), 2);
+  frame.argt_rt->setAddress(frame.buff_surfaces->gpuAddress(), 3);
+  frame.argt_rt->setAddress(frame.buff_emissives->gpuAddress(), 4);
+  frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
+}
+
+void GPU_Interface::subfn_render_build_tlas(Frame_Context &frame) {
+  const MTL::AccelerationStructureSizes sizes =
+      m_device->accelerationStructureSizes(frame.tlas_desc.get());
+
   frame.buff_scratch = m_device->newBuffer(sizes.buildScratchBufferSize,
                                            MTL::ResourceStorageModePrivate);
   frame.tlas =
@@ -302,15 +363,16 @@ void GPU_Interface::subfn_render_build_tlas(
   frame.rset->addAllocation(frame.buff_scratch.get());
   frame.rset->addAllocation(frame.tlas.get());
   frame.rset->commit();
-  frame.cmd_buff->useResidencySet(frame.rset.get());
   m_ce_as->buildAccelerationStructure(
       frame.tlas.get(), frame.tlas_desc.get(),
       MTL4::BufferRange::Make(frame.buff_scratch->gpuAddress(),
                               sizes.buildScratchBufferSize));
 }
 
-void GPU_Interface::subfn_render_refit_tlas(
-    Frame_Context &frame, const MTL::AccelerationStructureSizes &sizes) {
+void GPU_Interface::subfn_render_refit_tlas(Frame_Context &frame) {
+  const MTL::AccelerationStructureSizes sizes =
+      m_device->accelerationStructureSizes(frame.tlas_desc.get());
+
   if (frame.buff_scratch->length() < sizes.refitScratchBufferSize)
     frame.buff_scratch = m_device->newBuffer(sizes.refitScratchBufferSize,
                                              MTL::ResourceStorageModePrivate);
@@ -322,7 +384,6 @@ void GPU_Interface::subfn_render_refit_tlas(
     frame.rset->addAllocation(frame.buff_scratch.get());
     frame.rset->addAllocation(frame.tlas.get());
     frame.rset->commit();
-    frame.cmd_buff->useResidencySet(frame.rset.get());
     m_ce_as->refitAccelerationStructure(frame.tlas.get(), frame.tlas_desc.get(),
                                         frame.tlas.get(),
                                         buff_r_scratch); // In-place refit
@@ -333,7 +394,6 @@ void GPU_Interface::subfn_render_refit_tlas(
     frame.rset->addAllocation(frame.tlas.get());
     frame.rset->addAllocation(tlas_new.get());
     frame.rset->commit();
-    frame.cmd_buff->useResidencySet(frame.rset.get());
     m_ce_as->refitAccelerationStructure(frame.tlas.get(), frame.tlas_desc.get(),
                                         tlas_new.get(), buff_r_scratch);
 
@@ -368,43 +428,6 @@ bool GPU_Interface::subfn_render_validate_drawable_texture(
   frame.argt_rndr->setTexture(frame.tex_rt->gpuResourceID(), 0);
 
   return true;
-}
-
-void GPU_Interface::subfn_render_load_rt_buffers(
-    Frame_Context &frame, const entt::registry &reg,
-    std::vector<GPU_Types::Surface> &surfaces,
-    std::vector<GPU_Types::Emissive_Data> &emissives) {
-  frame.rt_config.has_scene = frame.tlas.exists() ? 1u : 0u;
-  std::memcpy(frame.buff_rt_params->contents(), &frame.rt_config,
-              sizeof(GPU_Types::Raytracing_Config));
-
-  const auto &_cam_view = reg.view<Components::Camera>();
-  if (_cam_view.empty()) {
-    free_current_frame(true);
-    return;
-  }
-
-  const Components::Camera &_cam =
-      reg.get<Components::Camera>(_cam_view.front());
-  const CTNM::Math::vec_f3 dir = _cam.fp - _cam.p;
-  GPU_Types::Camera cam;
-  cam.p = Utils::pack(_cam.p);
-  cam.dir = Utils::pack(dir);
-  cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
-  std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
-  std::memcpy(frame.buff_surfaces->contents(), surfaces.data(),
-              surfaces.size() * sizeof(GPU_Types::Surface));
-  std::memcpy(frame.buff_emissives->contents(), emissives.data(),
-              emissives.size() * sizeof(GPU_Types::Emissive_Data));
-
-  frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
-  frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
-  frame.argt_rt->setResource(frame.tlas.exists() ? frame.tlas->gpuResourceID()
-                                                 : MTL::ResourceID{0},
-                             2);
-  frame.argt_rt->setAddress(frame.buff_surfaces->gpuAddress(), 3);
-  frame.argt_rt->setAddress(frame.buff_emissives->gpuAddress(), 4);
-  frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 }
 
 void GPU_Interface::subfn_render_dispatch_rt_kernel(Frame_Context &frame) {
@@ -483,63 +506,38 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
 
   Frame_Context &frame = m_frame_contexts[m_slot];
   frame.rset->commit(); // Render_Packet allocations need to be commited
-  frame.cmd_buff->useResidencySet(frame.rset.get());
 
   /* Process top level acceleration structure (TLAS) */
   const bool build_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
   frame.revision = packet_revision;
 
-  size_t n_packets;
+  const size_t n_packets = packets.size();
   std::vector<GPU_Types::Surface> surfaces;
   std::vector<GPU_Types::Emissive_Data> emissives;
-  subfn_render_process_packets(frame, packets, packet_mtx, n_packets,
-                               build_tlas, surfaces, emissives);
-
-  const size_t factor = n_packets == 0 ? 1 : n_packets;
-  const size_t buff_surfaces_len = factor * sizeof(GPU_Types::Surface);
-  if (!frame.buff_surfaces.exists() ||
-      frame.buff_surfaces->length() < buff_surfaces_len)
-    frame.buff_surfaces =
-        m_device->newBuffer(buff_surfaces_len, MTL::ResourceStorageModeShared);
-
-  const size_t buff_emissives_len = factor * sizeof(GPU_Types::Emissive_Data);
-  if (!frame.buff_emissives.exists() ||
-      frame.buff_emissives->length() < buff_emissives_len)
-    frame.buff_emissives =
-        m_device->newBuffer(buff_emissives_len, MTL::ResourceStorageModeShared);
-
-  const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
-  std::memcpy(frame.buff_as_instance_ct->contents(), &n_packets_u32,
-              sizeof(uint32_t));
-  frame.tlas_desc->setMaxInstanceCount(static_cast<NS::UInteger>(n_packets));
-  frame.tlas_desc->setInstanceCountBuffer(MTL4::BufferRange::Make(
-      frame.buff_as_instance_ct->gpuAddress(), sizeof(uint32_t)));
-  frame.tlas_desc->setInstanceDescriptorBuffer(MTL4::BufferRange::Make(
-      frame.buff_as_instances->gpuAddress(),
-      n_packets *
-          sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor)));
-
-  frame.rset->addAllocation(frame.buff_as_instances.get());
-  frame.rset->addAllocation(frame.buff_as_instance_ct.get());
-
-  const MTL::AccelerationStructureSizes sizes =
-      m_device->accelerationStructureSizes(frame.tlas_desc.get());
+  subfn_render_stage_buffers(frame, n_packets, build_tlas);
+  subfn_render_process_packets(frame, packets, packet_mtx, build_tlas, surfaces,
+                               emissives);
+  subfn_render_load_buffers(frame, reg, surfaces, emissives);
 
   if (build_tlas)
-    subfn_render_build_tlas(frame, sizes);
+    subfn_render_build_tlas(frame);
   else
-    subfn_render_refit_tlas(frame, sizes);
+    subfn_render_refit_tlas(frame);
 
-  m_ce_as->endEncoding();
-  m_ce_as.smart_release();
-
-  if (!subfn_render_validate_drawable_texture(frame)) {
+  if (!frame.tlas.exists()) {
     free_current_frame(true);
     return;
   }
 
-  subfn_render_load_rt_buffers(frame, reg, surfaces, emissives);
+  m_ce_as->endEncoding();
+  m_ce_as.smart_release();
+
+  /* GPU kernel function dispatching */
+  if (!subfn_render_validate_drawable_texture(frame)) {
+    free_current_frame(true);
+    return;
+  }
 
   if (MTL4::ComputeCommandEncoder *ce_rt =
           frame.cmd_buff->computeCommandEncoder())
@@ -560,7 +558,6 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   subfn_render_dispatch_rt_kernel(frame);
 
   frame.rset->commit();
-  frame.cmd_buff->useResidencySet(frame.rset.get());
 
   if (MTL4::RenderCommandEncoder *ce_rndr =
           frame.cmd_buff->renderCommandEncoder(m_rp_desc.get())) {
