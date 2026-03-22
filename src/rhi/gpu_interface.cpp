@@ -50,6 +50,8 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   m_layer->setDrawableSize(CGSizeMake(fb_size.w, fb_size.h));
   m_metal_view_ns =
       Bridges::attach_ns_win(m_win->get_exposed_win(), m_layer.get());
+  if (!m_metal_view_ns)
+    throw std::runtime_error("NS::View: attach_ns_win failed");
 
   m_win->on_fb_resized().connect<&GPU_Interface::cb_fb_resized>(*this);
 
@@ -424,8 +426,10 @@ void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame,
         {
           std::lock_guard<std::mutex> lock(frame.mtx);
 
-          if (build_tlas && succeeded)
+          if (succeeded)
             frame.tlas_built = true;
+          else
+            frame.tlas_built = false;
 
           if (frame.drawable.exists())
             frame.drawable.smart_release();
@@ -447,7 +451,6 @@ void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame,
 
   const MTL4::CommandBuffer *bufs[] = {frame.cmd_buff.get()};
   m_cmd_q->commit(bufs, 1, commit_opts.get());
-  frame.cmd_buff.smart_release();
 }
 
 void GPU_Interface::render(
@@ -505,8 +508,6 @@ void GPU_Interface::render(
 
   m_ce_as->endEncoding();
   m_ce_as.smart_release();
-
-  frame.tlas_built = !build_tlas;
 
   if (!subfn_render_validate_drawable_texture(frame)) {
     free_current_frame(true);

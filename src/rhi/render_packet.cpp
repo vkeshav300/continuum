@@ -6,7 +6,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <utility>
 
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
@@ -21,7 +20,7 @@ Render_Packet::Render_Packet(GPU_Context &gpu_context,
   for (auto &as_context : m_as_contexts) {
     as_context.as_desc =
         MTL4::PrimitiveAccelerationStructureDescriptor::alloc()->init();
-    as_context.as_desc->setUsage(MTL::AccelerationStructureUsageNone);
+    as_context.as_desc->setUsage(MTL::AccelerationStructureUsageRefit);
   }
 
   update(gpu_context, transform, mesh, surface);
