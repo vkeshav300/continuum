@@ -33,6 +33,7 @@ struct Frame_Context {
   MTL_Unique<MTL::Buffer> buff_as_instances = nullptr;
   MTL_Unique<MTL::Buffer> buff_as_instance_ct = nullptr;
   MTL_Unique<MTL::Buffer> buff_surfaces = nullptr;
+  MTL_Unique<MTL::Buffer> buff_emissives = nullptr;
   MTL_Unique<MTL::Buffer> buff_cam = nullptr;
   MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
 
@@ -59,9 +60,8 @@ public:
 
   void cycle_frame();
   GPU_Context get_gpu_context();
-  void render(std::unordered_map<entt::entity, Render_Packet> &packets,
-              std::mutex &packet_mtx, const uint64_t packet_revision,
-              const entt::registry &reg);
+  void render(const packet_umap &packets, std::mutex &packet_mtx,
+              const uint64_t packet_revision, const entt::registry &reg);
 
   Event<uint32_t> &on_cpu_completed();
   Event<uint32_t> &on_gpu_completed();
@@ -98,18 +98,19 @@ private:
   void free_current_frame(const bool end_cmd_buff);
 
   void subfn_render_process_packets(
-      Frame_Context &frame,
-      const std::unordered_map<entt::entity, Render_Packet> &packets,
-      std::mutex &packet_mtx, size_t &n_packets, const bool build_tlas,
-      std::vector<GPU_Types::Surface> &surfaces);
+      Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
+      size_t &n_packets, const bool build_tlas,
+      std::vector<GPU_Types::Surface> &surfaces,
+      std::vector<GPU_Types::Emissive_Data> &emissives);
   void subfn_render_build_tlas(Frame_Context &frame,
                                const MTL::AccelerationStructureSizes &sizes);
   void subfn_render_refit_tlas(Frame_Context &frame,
                                const MTL::AccelerationStructureSizes &sizes);
   bool subfn_render_validate_drawable_texture(Frame_Context &frame);
-  void subfn_render_load_rt_buffers(Frame_Context &frame,
-                                    const entt::registry &reg,
-                                    std::vector<GPU_Types::Surface> &surfaces);
+  void subfn_render_load_rt_buffers(
+      Frame_Context &frame, const entt::registry &reg,
+      std::vector<GPU_Types::Surface> &surfaces,
+      std::vector<GPU_Types::Emissive_Data> &emissives);
   void subfn_render_dispatch_rt_kernel(Frame_Context &frame);
   void subfn_render_submit_cmd_buff(Frame_Context &Frame,
                                     const bool build_tlas);

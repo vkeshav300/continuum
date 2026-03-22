@@ -3,6 +3,7 @@
 #include "math_utils.hpp"
 #include "rhi/gpu_context.hpp"
 #include "rhi/gpu_types.hpp"
+#include "rhi/utils.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -15,7 +16,7 @@ namespace CTNM::RHI {
 
 Render_Packet::Render_Packet(GPU_Context &gpu_context,
                              const Components::Transform &transform,
-                             const Components::Mesh &mesh,
+                             Components::Mesh &mesh,
                              const Components::Surface &surface) {
   for (auto &as_context : m_as_contexts) {
     as_context.as_desc =
@@ -61,6 +62,36 @@ void Render_Packet::subfn_update_write_transform(
   /* Write */
   m_as_contexts[slot].transform =
       MTL::PackedFloat4x3{p_col_0, p_col_1, p_col_2, p_col_3};
+}
+
+void Render_Packet::subfn_update_write_surface(
+    const uint32_t slot, const Components::Surface &surface) {
+  AS_Context &as_context = m_as_contexts[slot];
+  as_context.surface.color = Utils::vf3_to_vpf3(surface.color);
+  as_context.surface.albedo = Utils::vf3_to_vpf3(surface.albedo);
+  as_context.surface.ambient = surface.ambient;
+  as_context.surface.emission_strength = surface.emission_strength;
+  as_context.surface.reflectivity = surface.reflectivity;
+  as_context.surface.roughness = surface.roughness;
+  as_context.surface.specular_power = surface.specular_power;
+  as_context.surface.flags = surface.flags;
+}
+
+void Render_Packet::subfn_update_write_vertex_normals(Components::Mesh &mesh) {
+  for (size_t i = 0; i < mesh.indicies.size(); i += 3) {
+    const uint32_t i0 = mesh.indicies[i], i1 = mesh.indicies[i + 1],
+                   i2 = mesh.indicies[i + 2];
+    Components::Vertex &v0 = mesh.verticies[i0], v1 = mesh.verticies[i1],
+                       v2 = mesh.verticies[i2];
+    const Math::vec_f3 e1 = v1.p - v0.p, e2 = v2.p - v0.p,
+                       nf = Math::approx_eq(Math::magnitude(e1), 0) ||
+                                    Math::approx_eq(Math::magnitude(e2), 0)
+                                ? Math::vec_f3{0.0f, 0.0f, 0.0f}
+                                : Math::cross(e1, e2);
+    v0.n = Math::normalize(v0.n + nf);
+    v1.n = Math::normalize(v1.n + nf);
+    v2.n = Math::normalize(v2.n + nf);
+  }
 }
 
 void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
@@ -124,18 +155,19 @@ void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
 
 void Render_Packet::update(GPU_Context &gpu_context,
                            const Components::Transform &transform,
-                           const Components::Mesh &mesh,
+                           Components::Mesh &mesh,
                            const Components::Surface &surface) {
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
   AS_Context &as_context = m_as_contexts[gpu_context.slot];
 
   subfn_update_write_transform(gpu_context.slot, transform);
-  as_context.surface = GPU_Types::Surface{
-      GPU_Types::vec_pf3{surface.color.x, surface.color.y, surface.color.z}};
+  subfn_update_write_surface(gpu_context.slot, surface);
 
-  if (build_required(gpu_context.slot, mesh))
+  if (build_required(gpu_context.slot, mesh)) {
+    subfn_update_write_vertex_normals(mesh);
     subfn_update_build_as(gpu_context, as_context, mesh);
+  }
 }
 
 bool Render_Packet::build_required(const uint32_t slot,

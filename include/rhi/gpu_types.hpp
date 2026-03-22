@@ -10,10 +10,6 @@
 
 namespace CTNM::RHI::GPU_Types {
 
-struct Raytracing_Params {
-  uint32_t has_scene;
-};
-
 #ifdef __METAL_VERSION__
 
 using vec_pf3 = packed_float3;
@@ -29,14 +25,26 @@ using vec_pf3 = MTL::PackedFloat3;
 
 #endif
 
+struct Raytracing_Params {
+  uint32_t has_scene, max_bounces, emissive_count;
+  float ambient_intensity, t_min, t_max, shadow_bias;
+  vec_pf3 ambient_color;
+};
+
 struct Camera {
-  vec_pf3 p;
-  vec_pf3 dir;
+  vec_pf3 p, dir;
   float fl; // Focal length
 };
 
 struct Surface {
-  vec_pf3 color;
+  vec_pf3 color, albedo;
+  float ambient, emission_strength, reflectivity, roughness, specular_power;
+  uint32_t flags;
+};
+
+struct Emissive_Data {
+  uint32_t instance_id; // Used to index surface buffer
+  vec_pf3 p_ws;         // Position (world space)
 };
 
 } // namespace CTNM::RHI::GPU_Types

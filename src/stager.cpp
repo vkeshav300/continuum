@@ -9,14 +9,14 @@
 
 namespace CTNM {
 
-void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
+void Stager::stage(RHI::GPU_Context &gpu_context, entt::registry &reg) {
   const auto &renderable_entities =
       reg.view<Components::Mesh, Components::Transform, Components::Surface>();
 
   std::lock_guard<std::mutex> lock(m_mtx);
   bool packet_added = false;
   for (const auto e : renderable_entities) {
-    const auto &[mesh, transform, surface] =
+    auto &&[mesh, transform, surface] =
         reg.get<Components::Mesh, Components::Transform, Components::Surface>(
             e);
 
@@ -37,10 +37,7 @@ void Stager::stage(RHI::GPU_Context &gpu_context, const entt::registry &reg) {
     m_revision.fetch_add(1);
 }
 
-std::unordered_map<entt::entity, RHI::Render_Packet> &
-Stager::get_render_packets() {
-  return m_packets;
-}
+RHI::packet_umap &Stager::get_render_packets() { return m_packets; }
 
 void Stager::decommission_packet(const entt::entity e) {
   const std::lock_guard<std::mutex> lock(m_mtx);

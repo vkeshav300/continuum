@@ -25,6 +25,7 @@ struct Physics {
 
 struct Vertex {
   Math::vec_f3 p = {0.0f, 0.0f, 0.0f}; // Position
+  Math::vec_f3 n = {0.0f, 0.0f, 0.0f}; // Normal
 };
 
 struct Mesh {
@@ -34,7 +35,9 @@ struct Mesh {
 };
 
 struct Surface {
-  Math::vec_f3 color;
+  Math::vec_f3 color, albedo;
+  float ambient, emission_strength, reflectivity, roughness, specular_power;
+  uint32_t flags;
 };
 
 } // namespace CTNM::Components

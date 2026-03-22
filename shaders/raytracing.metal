@@ -11,6 +11,7 @@ using namespace CTNM::RHI::GPU_Types;
                             raytracing::instance_acceleration_structure tlas
                             [[buffer(2)]],
                             constant Surface *surfaces [[buffer(3)]],
+                            constant Emissive_Data *emissives [[buffer(4)]],
                             texture2d<float, access::write> out_tex
                             [[texture(0)]],
                             uint2 tid [[thread_position_in_grid]]) {
@@ -45,8 +46,8 @@ using namespace CTNM::RHI::GPU_Types;
   float3 color = float3(0.0f);
 
   if (result.type == raytracing::intersection_type::triangle) {
-    const uint uid = result.instance_id;
-    color = clamp(surfaces[uid].color / 255.0f, 0.0f, 1.0f);
+    const uint iid = result.instance_id;
+    color = clamp(surfaces[iid].color / 255.0f, 0.0f, 1.0f);
   }
 
   out_tex.write(float4(color, 1.0f), tid);

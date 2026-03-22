@@ -6,8 +6,10 @@
 
 #include <array>
 #include <cstdint>
+#include <unordered_map>
 
 #include <Metal/Metal.hpp>
+#include <entt/entt.hpp>
 
 namespace CTNM::RHI {
 
@@ -31,13 +33,12 @@ struct AS_Context {
 class Render_Packet {
 public:
   Render_Packet(GPU_Context &gpu_context,
-                const Components::Transform &transform,
-                const Components::Mesh &mesh,
+                const Components::Transform &transform, Components::Mesh &mesh,
                 const Components::Surface &surface);
   ~Render_Packet() = default;
 
   void update(GPU_Context &gpu_context, const Components::Transform &transform,
-              const Components::Mesh &mesh, const Components::Surface &surface);
+              Components::Mesh &mesh, const Components::Surface &surface);
   bool build_required(const uint32_t slot, const Components::Mesh &mesh) const;
 
   const MTL::AccelerationStructure *get_as(const uint32_t slot) const;
@@ -49,8 +50,13 @@ private:
 
   void subfn_update_write_transform(const uint32_t slot,
                                     const Components::Transform &transform);
+  void subfn_update_write_surface(const uint32_t slot,
+                                  const Components::Surface &surface);
+  void subfn_update_write_vertex_normals(Components::Mesh &mesh);
   void subfn_update_build_as(GPU_Context &gpu_context, AS_Context &as_context,
                              const Components::Mesh &mesh);
 };
+
+using packet_umap = std::unordered_map<entt::entity, Render_Packet>;
 
 } // namespace CTNM::RHI
