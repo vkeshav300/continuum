@@ -36,7 +36,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     : m_win(std::move(win)), m_pool_full(NS::AutoreleasePool::alloc()->init()),
       m_device(MTL::CreateSystemDefaultDevice()),
       m_layer(CA::MetalLayer::layer()->retain()) {
-  assert(m_device.exists());
+  m_device.validate();
   assert(m_device->supportsFamily(MTL::GPUFamilyMetal4));
   assert(m_device->supportsRaytracing());
 
@@ -54,10 +54,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   m_win->on_fb_resized().connect<&GPU_Interface::cb_fb_resized>(*this);
 
   m_cmd_q = m_device->newMTL4CommandQueue();
-  assert(m_cmd_q.exists());
+  m_cmd_q.validate();
 
   m_rset_layer = m_layer->residencySet();
-  assert(m_rset_layer.exists());
+  m_rset_layer.validate();
   m_cmd_q->addResidencySet(m_rset_layer.get());
 
   NS::Error *err = nullptr;
@@ -79,10 +79,10 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   for (auto &frame : m_frame_contexts) {
     frame.cmd_alloc = m_device->newCommandAllocator();
-    assert(frame.cmd_alloc.exists());
+    frame.cmd_alloc.validate();
 
     frame.rset = m_device->newResidencySet(rset_desc.get(), &err);
-    assert(frame.rset.exists());
+    frame.rset.validate();
 
     frame.tlas_desc =
         MTL4::IndirectInstanceAccelerationStructureDescriptor::alloc()->init();
@@ -108,19 +108,19 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
                                 MTL::TextureUsageShaderWrite);
 
     frame.argt_rt = m_device->newArgumentTable(argt_rt_desc.get(), &err);
-    assert(frame.argt_rt.exists());
+    frame.argt_rt.validate();
 
     frame.argt_rndr = m_device->newArgumentTable(argt_rndr_desc.get(), &err);
-    assert(frame.argt_rndr.exists());
+    frame.argt_rndr.validate();
   }
 
   m_lib = m_device->newDefaultLibrary();
-  assert(m_lib.exists());
+  m_lib.validate();
 
   for (const std::string fn_name : {"v_present", "f_present", "k_raytracer"}) {
     m_fns[fn_name] = m_lib->newFunction(NS::String::string(
         fn_name.data(), NS::StringEncoding::UTF8StringEncoding));
-    assert(m_fns[fn_name].exists());
+    m_fns[fn_name].validate();
   }
 
   MTL_Unique<MTL::ComputePipelineDescriptor> ps_rt_desc =
@@ -129,7 +129,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
 
   m_ps_rt = m_device->newComputePipelineState(
       ps_rt_desc.get(), MTL::PipelineOptionNone, nullptr, &err);
-  assert(m_ps_rt.exists());
+  m_ps_rt.validate();
 
   MTL_Unique<MTL::RenderPipelineDescriptor> ps_present_desc =
       MTL::RenderPipelineDescriptor::alloc()->init();
@@ -138,7 +138,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   ps_present_desc->colorAttachments()->object(0)->setPixelFormat(
       MTL::PixelFormatBGRA8Unorm);
   m_ps_present = m_device->newRenderPipelineState(ps_present_desc.get(), &err);
-  assert(m_ps_present.exists());
+  m_ps_present.validate();
 
   m_rp_desc = MTL4::RenderPassDescriptor::alloc()->init();
   m_rp_desc->setDefaultRasterSampleCount(1);
@@ -467,7 +467,6 @@ void GPU_Interface::render(
   /* Top level acceleration structure (TLAS) */
   const bool build_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
-  frame.tlas_built = !build_tlas;
   frame.revision = packet_revision;
 
   size_t n_packets;
@@ -506,6 +505,8 @@ void GPU_Interface::render(
 
   m_ce_as->endEncoding();
   m_ce_as.smart_release();
+
+  frame.tlas_built = !build_tlas;
 
   if (!subfn_render_validate_drawable_texture(frame)) {
     free_current_frame(true);

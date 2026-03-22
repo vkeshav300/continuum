@@ -1,7 +1,6 @@
 #include "window.hpp"
 #include "event.hpp"
 
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <stdexcept>
@@ -15,7 +14,8 @@ Window::Window(const FB_Size &fb_size,
                const std::chrono::milliseconds target_frame_len)
     : m_target_frame_len(target_frame_len) {
   glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_COCOA);
-  assert(glfwInit());
+  if (!glfwInit())
+    throw std::runtime_error("Window: glfwInit failed");
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   m_win = glfwCreateWindow(fb_size.w, fb_size.h, "Continuum", nullptr, nullptr);

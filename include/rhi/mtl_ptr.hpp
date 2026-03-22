@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <stdexcept>
 #include <utility>
 
 #ifdef __APPLE__
@@ -59,6 +60,11 @@ public:
   }
 
   bool exists() const { return m_ptr != nullptr; }
+
+  void validate() const {
+    if (!m_ptr)
+      throw std::runtime_error("MTL_Unique: validate() failed");
+  }
 };
 
 template <typename T> class MTL_Shared {
@@ -137,6 +143,11 @@ public:
   }
 
   bool exists() const { return m_ptr != nullptr; }
+
+  void validate() const {
+    if (!m_ptr)
+      throw std::runtime_error("MTL_Shared: validate() failed");
+  }
 };
 
 }; // namespace CTNM::RHI
