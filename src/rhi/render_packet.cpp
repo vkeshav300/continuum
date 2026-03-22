@@ -119,6 +119,8 @@ void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
       as_context.as.get(), as_context.as_desc.get(),
       MTL4::BufferRange::Make(as_context.buff_scratch->gpuAddress(),
                               sizes.buildScratchBufferSize));
+
+  as_context.as_built = true;
 }
 
 void Render_Packet::update(GPU_Context &gpu_context,

@@ -25,16 +25,9 @@ NS::View *attach_ns_win(GLFWwindow *win, CA::MetalLayer *layer) {
   metal_view.layer.contentsScale = _win.backingScaleFactor;
 
   [_win.contentView addSubview:metal_view];
-  return (__bridge NS::View *)metal_view;
-}
-
-void detach_ns_win(NS::View *metal_view) {
-  NSView *_metal_view = (__bridge NSView *)metal_view;
-  if (!_metal_view)
-    return;
-
-  _metal_view.layer = nil;
-  [_metal_view removeFromSuperview];
+  NS::View *view_ns = (__bridge NS::View *)metal_view;
+  [metal_view release];
+  return view_ns;
 }
 
 } // namespace CTNM::RHI::Bridges

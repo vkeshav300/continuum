@@ -69,7 +69,7 @@ public:
 private:
   std::shared_ptr<Window> m_win;
 
-  MTL_Unique<NS::View> m_metal_view_ns = nullptr;
+  NS::View *m_metal_view_ns = nullptr;
   MTL_Unique<NS::AutoreleasePool> m_pool_full = nullptr;
 
   MTL_Unique<CA::MetalLayer> m_layer = nullptr;

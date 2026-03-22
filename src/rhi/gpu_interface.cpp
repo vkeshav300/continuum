@@ -48,10 +48,8 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   m_layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
   m_layer->setFramebufferOnly(true);
   m_layer->setDrawableSize(CGSizeMake(fb_size.w, fb_size.h));
-  if (NS::View *metal_view =
-          Bridges::attach_ns_win(m_win->get_exposed_win(), m_layer.get())) {
-    m_metal_view_ns = metal_view;
-  }
+  m_metal_view_ns =
+      Bridges::attach_ns_win(m_win->get_exposed_win(), m_layer.get());
 
   m_win->on_fb_resized().connect<&GPU_Interface::cb_fb_resized>(*this);
 
@@ -158,10 +156,8 @@ GPU_Interface::~GPU_Interface() {
     frame.cv.wait(lock, [&frame] { return frame.ready; });
   }
 
-  if (m_win) {
+  if (m_win)
     m_win->on_fb_resized().disconnect<&GPU_Interface::cb_fb_resized>(*this);
-    Bridges::detach_ns_win(m_metal_view_ns.get());
-  }
 }
 
 void GPU_Interface::free_current_frame(const bool end_cmd_buff) {
@@ -425,21 +421,27 @@ void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame,
        build_tlas](MTL4::CommitFeedback *feedback) {
         const bool succeeded = !feedback || feedback->error() == nullptr;
         frame.cmd_alloc->reset();
-        std::lock_guard<std::mutex> lock(frame.mtx);
+        {
+          std::lock_guard<std::mutex> lock(frame.mtx);
 
-        if (build_tlas && succeeded)
-          frame.tlas_built = true;
+          if (build_tlas && succeeded)
+            frame.tlas_built = true;
 
-        if (frame.drawable.exists())
-          frame.drawable.smart_release();
+          if (frame.drawable.exists())
+            frame.drawable.smart_release();
 
-        if (frame.cmd_buff.exists())
-          frame.cmd_buff.smart_release();
-
-        frame.ready = true;
-        frame.cv.notify_one();
+          if (frame.cmd_buff.exists())
+            frame.cmd_buff.smart_release();
+        }
 
         ev_gpu_completed.fire(slot);
+        {
+          std::lock_guard<std::mutex> lock(
+              frame.mtx); // Wait for all event connections to complete
+                          // post-frame work
+          frame.ready = true;
+        }
+        frame.cv.notify_one();
       });
   commit_opts->addFeedbackHandler(cb_feedback);
 
