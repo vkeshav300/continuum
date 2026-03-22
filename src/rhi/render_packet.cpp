@@ -1,7 +1,7 @@
 #include "rhi/render_packet.hpp"
 #include "components.hpp"
 #include "math_utils.hpp"
-#include "rhi/gpu_context.hpp"
+#include "rhi/defines.hpp"
 #include "rhi/gpu_types.hpp"
 #include "rhi/utils.hpp"
 

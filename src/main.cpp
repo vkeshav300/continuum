@@ -8,13 +8,12 @@ int main(int argc, char *argv[]) {
 
 #else
 
-#include "rhi/gpu_context.hpp"
+#include "rhi/defines.hpp"
 #include "rhi/gpu_interface.hpp"
 #include "simulator.hpp"
 #include "stager.hpp"
 #include "window.hpp"
 
-#include <chrono>
 #include <memory>
 
 inline CTNM::Components::Mesh generate_cube_mesh(const float h = 0.5f) {

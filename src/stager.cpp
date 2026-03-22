@@ -1,5 +1,5 @@
 #include "stager.hpp"
-#include "rhi/gpu_context.hpp"
+#include "rhi/defines.hpp"
 #include "rhi/render_packet.hpp"
 
 #include <mutex>

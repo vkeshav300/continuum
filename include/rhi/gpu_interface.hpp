@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../window.hpp"
+#include "defines.hpp"
 #include "event.hpp"
-#include "gpu_context.hpp"
 #include "mtl_ptr.hpp"
 #include "render_packet.hpp"
 

@@ -1,7 +1,7 @@
 #include "rhi/gpu_interface.hpp"
 #include "event.hpp"
 #include "rhi/bridges.hpp"
-#include "rhi/gpu_context.hpp"
+#include "rhi/defines.hpp"
 #include "rhi/gpu_types.hpp"
 #include "rhi/mtl_ptr.hpp"
 #include "rhi/render_packet.hpp"

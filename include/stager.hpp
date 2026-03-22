@@ -1,6 +1,6 @@
 #pragma once
 
-#include "rhi/gpu_context.hpp"
+#include "rhi/defines.hpp"
 #include "rhi/render_packet.hpp"
 
 #include <atomic>
@@ -39,7 +39,7 @@ private:
   std::mutex m_mtx;
   std::condition_variable m_cv;
   std::atomic<uint64_t> m_revision = 0;
-  int m_inflight = 0; // Always protected by m_mtx, no need for atomic
+  int m_inflight = 0; // Always protected by mutex, no need for atomic
 };
 
 } // namespace CTNM

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../components.hpp"
-#include "gpu_context.hpp"
+#include "defines.hpp"
 #include "gpu_types.hpp"
 
 #include <array>
