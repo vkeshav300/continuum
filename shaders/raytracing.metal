@@ -4,17 +4,15 @@
 #include <metal_stdlib>
 
 using namespace metal;
-using namespace CTNM::RHI::GPU_Types;
 
-[[kernel]] void k_raytracer(constant Raytracing_Params &config [[buffer(0)]],
-                            constant Camera &cam [[buffer(1)]],
-                            raytracing::instance_acceleration_structure tlas
-                            [[buffer(2)]],
-                            constant Surface *surfaces [[buffer(3)]],
-                            constant Emissive_Data *emissives [[buffer(4)]],
-                            texture2d<float, access::write> out_tex
-                            [[texture(0)]],
-                            uint2 tid [[thread_position_in_grid]]) {
+[[kernel]] void k_raytracer(
+    constant CTNM::RHI::GPU_Types::Raytracing_Params &config [[buffer(0)]],
+    constant CTNM::RHI::GPU_Types::Camera &cam [[buffer(1)]],
+    raytracing::instance_acceleration_structure tlas [[buffer(2)]],
+    constant CTNM::RHI::GPU_Types::Surface *surfaces [[buffer(3)]],
+    constant CTNM::RHI::GPU_Types::Emissive_Data *emissives [[buffer(4)]],
+    texture2d<float, access::write> out_tex [[texture(0)]],
+    uint2 tid [[thread_position_in_grid]]) {
   /* Ensure thread is inside rendered area */
   if (tid.x >= out_tex.get_width() || tid.y >= out_tex.get_height())
     return;
