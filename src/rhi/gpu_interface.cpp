@@ -381,8 +381,8 @@ void GPU_Interface::subfn_render_load_rt_buffers(
       reg.get<Components::Camera>(_cam_view.front());
   const CTNM::Math::vec_f3 dir = _cam.fp - _cam.p;
   GPU_Types::Camera cam;
-  cam.p = Utils::vf3_to_vpf3(_cam.p);
-  cam.dir = Utils::vf3_to_vpf3(dir);
+  cam.p = Utils::pack(_cam.p);
+  cam.dir = Utils::pack(dir);
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
   std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
   std::memcpy(frame.buff_surfaces->contents(), surfaces.data(),

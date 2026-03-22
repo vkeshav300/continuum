@@ -67,8 +67,8 @@ void Render_Packet::subfn_update_write_transform(
 void Render_Packet::subfn_update_write_surface(
     const uint32_t slot, const Components::Surface &surface) {
   AS_Context &as_context = m_as_contexts[slot];
-  as_context.surface.color = Utils::vf3_to_vpf3(surface.color);
-  as_context.surface.albedo = Utils::vf3_to_vpf3(surface.albedo);
+  as_context.surface.color = Utils::pack(surface.color);
+  as_context.surface.albedo = Utils::pack(surface.albedo);
   as_context.surface.ambient = surface.ambient;
   as_context.surface.emission_strength = surface.emission_strength;
   as_context.surface.reflectivity = surface.reflectivity;
