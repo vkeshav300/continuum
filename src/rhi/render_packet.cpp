@@ -3,6 +3,7 @@
 #include "math_utils.hpp"
 #include "rhi/defines.hpp"
 #include "rhi/gpu_types.hpp"
+#include "rhi/mtl_ptr.hpp"
 #include "rhi/utils.hpp"
 
 #include <cstdint>
@@ -16,7 +17,7 @@ namespace CTNM::RHI {
 
 Render_Packet::Render_Packet(GPU_Context &gpu_context,
                              const Components::Transform &transform,
-                             Components::Mesh &mesh,
+                             const Components::Mesh &mesh,
                              const Components::Surface &surface) {
   for (auto &as_context : m_as_contexts) {
     as_context.as_desc =
@@ -77,21 +78,34 @@ void Render_Packet::subfn_update_write_surface(
   as_context.surface.flags = surface.flags;
 }
 
-void Render_Packet::subfn_update_write_vertex_normals(Components::Mesh &mesh) {
-  for (size_t i = 0; i < mesh.indicies.size(); i += 3) {
-    const uint32_t i0 = mesh.indicies[i], i1 = mesh.indicies[i + 1],
-                   i2 = mesh.indicies[i + 2];
-    Components::Vertex &v0 = mesh.verticies[i0], v1 = mesh.verticies[i1],
-                       v2 = mesh.verticies[i2];
+void Render_Packet::subfn_update_write_vertex_info(
+    AS_Context &as_context, const Components::Mesh &mesh) {
+  /* Copy data */
+  std::vector<Components::Vertex> verticies = mesh.verticies;
+  as_context.indicies = mesh.indicies;
+
+  /* Calculate vertex normals */
+  for (size_t i = 0; i < as_context.indicies.size(); i += 3) {
+    const uint32_t i0 = as_context.indicies[i], i1 = as_context.indicies[i + 1],
+                   i2 = as_context.indicies[i + 2];
+    Components::Vertex v0 = verticies[i0], v1 = verticies[i1],
+                       v2 = verticies[i2];
     const Math::vec_f3 e1 = v1.p - v0.p, e2 = v2.p - v0.p,
                        nf = Math::approx_eq(Math::magnitude(e1), 0) ||
                                     Math::approx_eq(Math::magnitude(e2), 0)
                                 ? Math::vec_f3{0.0f, 0.0f, 0.0f}
                                 : Math::cross(e1, e2);
+
     v0.n = Math::normalize(v0.n + nf);
     v1.n = Math::normalize(v1.n + nf);
     v2.n = Math::normalize(v2.n + nf);
   }
+
+  /* Format (pack) verticies for GPU */
+  as_context.verticies.clear();
+  for (const Components::Vertex &vertex : verticies)
+    as_context.verticies.emplace_back(Utils::pack(vertex.p),
+                                      Utils::pack(vertex.n));
 }
 
 void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
@@ -128,7 +142,7 @@ void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
   as_context.as_desc->setGeometryDescriptors(as_geom_desc_array);
 
   /* Build AS */
-  if (!gpu_context.ce_as.exists())
+  if (!gpu_context.ce_as)
     return;
 
   const MTL::AccelerationStructureSizes sizes =
@@ -155,7 +169,7 @@ void Render_Packet::subfn_update_build_as(GPU_Context &gpu_context,
 
 void Render_Packet::update(GPU_Context &gpu_context,
                            const Components::Transform &transform,
-                           Components::Mesh &mesh,
+                           const Components::Mesh &mesh,
                            const Components::Surface &surface) {
   MTL_Unique<NS::AutoreleasePool> pool_limited =
       NS::AutoreleasePool::alloc()->init();
@@ -165,7 +179,7 @@ void Render_Packet::update(GPU_Context &gpu_context,
   subfn_update_write_surface(gpu_context.slot, surface);
 
   if (build_required(gpu_context.slot, mesh)) {
-    subfn_update_write_vertex_normals(mesh);
+    subfn_update_write_vertex_info(as_context, mesh);
     subfn_update_build_as(gpu_context, as_context, mesh);
   }
 }
@@ -189,6 +203,16 @@ Render_Packet::get_transform(const uint32_t slot) const {
 const GPU_Types::Surface &
 Render_Packet::get_surface(const uint32_t slot) const {
   return m_as_contexts[slot].surface;
+}
+
+const std::vector<GPU_Types::Vertex> &
+Render_Packet::get_verticies(const uint32_t slot) const {
+  return m_as_contexts[slot].verticies;
+}
+
+const std::vector<uint32_t> &
+Render_Packet::get_indicies(const uint32_t slot) const {
+  return m_as_contexts[slot].indicies;
 }
 
 } // namespace CTNM::RHI

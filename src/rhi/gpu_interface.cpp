@@ -66,11 +66,11 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
   NS::Error *err = nullptr;
   MTL_Unique<MTL::ResidencySetDescriptor> rset_desc =
       MTL::ResidencySetDescriptor::alloc()->init();
-  rset_desc->setInitialCapacity(16);
+  rset_desc->setInitialCapacity(32);
 
   MTL_Unique<MTL4::ArgumentTableDescriptor> argt_rt_desc =
       MTL4::ArgumentTableDescriptor::alloc()->init();
-  argt_rt_desc->setMaxBufferBindCount(5);
+  argt_rt_desc->setMaxBufferBindCount(8);
   argt_rt_desc->setMaxTextureBindCount(1);
   argt_rt_desc->setMaxSamplerStateBindCount(0);
 
@@ -99,7 +99,7 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
         m_device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
     frame.buff_cam = m_device->newBuffer(sizeof(GPU_Types::Camera),
                                          MTL::ResourceStorageModeShared);
-    frame.buff_rt_params = m_device->newBuffer(
+    frame.buff_rt_config = m_device->newBuffer(
         sizeof(GPU_Types::Raytracing_Config), MTL::ResourceStorageModeShared);
 
     frame.tex_rt_desc = MTL::TextureDescriptor::alloc()->init();
@@ -249,63 +249,65 @@ GPU_Context GPU_Interface::get_gpu_context() {
 
   frame.cmd_buff->useResidencySet(frame.rset.get());
 
-  return GPU_Context{m_slot, skip_frame, m_device, m_ce_as, frame.rset};
+  return GPU_Context{m_slot, skip_frame, m_device.get(), m_ce_as.get(),
+                     frame.rset.get()};
 }
 
-void GPU_Interface::subfn_render_stage_buffers(Frame_Context &frame,
-                                               const size_t n_packets,
-                                               const bool build_tlas) {
+void GPU_Interface::subfn_render_process_packets(
+    Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
+    const bool build_tlas, std::vector<GPU_Types::Lookup> &lookups,
+    std::vector<GPU_Types::Vertex> &verticies, std::vector<uint32_t> &indicies,
+    std::vector<GPU_Types::Surface> &surfaces,
+    std::vector<GPU_Types::Emissive_Data> &emissives, const size_t n_packets) {
+  surfaces.reserve(n_packets);
+
   if (build_tlas)
     frame.buff_asi = m_device->newBuffer(
         n_packets *
             sizeof(MTL::IndirectAccelerationStructureInstanceDescriptor),
         MTL::ResourceStorageModeShared);
 
-  const size_t factor = n_packets == 0 ? 1 : n_packets;
-  const size_t buff_surfaces_len = factor * sizeof(GPU_Types::Surface);
-  if (!frame.buff_surfaces.exists() ||
-      frame.buff_surfaces->length() < buff_surfaces_len)
-    frame.buff_surfaces =
-        m_device->newBuffer(buff_surfaces_len, MTL::ResourceStorageModeShared);
-
-  const size_t buff_emissives_len = factor * sizeof(GPU_Types::Emissive_Data);
-  if (!frame.buff_emissives.exists() ||
-      frame.buff_emissives->length() < buff_emissives_len)
-    frame.buff_emissives =
-        m_device->newBuffer(buff_emissives_len, MTL::ResourceStorageModeShared);
-}
-
-void GPU_Interface::subfn_render_process_packets(
-    Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
-    const bool build_tlas, std::vector<GPU_Types::Surface> &surfaces,
-    std::vector<GPU_Types::Emissive_Data> &emissives) {
-  const std::lock_guard<std::mutex> lock(packet_mtx);
-  const size_t n_packets = packets.size();
-  surfaces.reserve(n_packets);
-
   MTL::IndirectAccelerationStructureInstanceDescriptor *asi_descs =
       static_cast<MTL::IndirectAccelerationStructureInstanceDescriptor *>(
           frame.buff_asi->contents());
 
-  uint32_t iid = 0;
-  for (auto &[_, packet] : packets) {
-    const GPU_Types::Surface &surface = packet.get_surface(m_slot);
-    const MTL::PackedFloat4x3 &transform = packet.get_transform(m_slot);
-    surfaces.push_back(packet.get_surface(m_slot));
+  {
+    const std::lock_guard<std::mutex> lock(packet_mtx);
+    uint32_t iid = 0;
+    for (auto &[_, packet] : packets) {
+      const GPU_Types::Surface &surface = packet.get_surface(m_slot);
+      GPU_Types::Lookup lookup;
+      lookup.rng_surface = Utils::make_range(surfaces.size());
+      surfaces.push_back(packet.get_surface(m_slot));
 
-    if (surface.emission_strength != 0) {
-      emissives.emplace_back(
-          iid, transform[3]); // World space position stored in col3
-      frame.rt_config.emissive_count++;
+      const size_t vtx_start = verticies.size();
+      const std::vector<GPU_Types::Vertex> &p_verticies =
+          packet.get_verticies(m_slot);
+      verticies.insert(verticies.end(), p_verticies.begin(), p_verticies.end());
+      lookup.rng_vertex = Utils::make_range(vtx_start, verticies.size());
+
+      const size_t ind_start = indicies.size();
+      const std::vector<uint32_t> &p_indicies = packet.get_indicies(m_slot);
+      indicies.insert(indicies.end(), p_indicies.begin(), p_indicies.end());
+      lookup.rng_index = Utils::make_range(ind_start, indicies.size());
+
+      lookups.push_back(lookup);
+
+      const MTL::PackedFloat4x3 &transform = packet.get_transform(m_slot);
+      if (surface.emission_strength != 0) {
+        emissives.emplace_back(
+            iid, transform[3]); // World space position stored in col3
+        frame.rt_config.emissive_count++;
+      }
+
+      MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
+          asi_descs[iid];
+      asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
+      asi_desc.userID = iid++; // instance_id GPU-side
+      asi_desc.transformationMatrix = transform;
+      asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
+      asi_desc.mask = 0xFF;
     }
-
-    MTL::IndirectAccelerationStructureInstanceDescriptor &asi_desc =
-        asi_descs[iid];
-    asi_desc.accelerationStructureID = packet.get_as(m_slot)->gpuResourceID();
-    asi_desc.userID = iid++; // instance_id GPU-side
-    asi_desc.transformationMatrix = transform;
-    asi_desc.options = MTL::AccelerationStructureInstanceOptionNone;
-    asi_desc.mask = 0xFF;
   }
 
   const uint32_t n_packets_u32 = static_cast<uint32_t>(n_packets);
@@ -322,10 +324,31 @@ void GPU_Interface::subfn_render_process_packets(
   frame.rset->addAllocation(frame.buff_asi.get());
 }
 
-void GPU_Interface::subfn_render_load_buffers(
+void GPU_Interface::subfn_render_write_arguments(
     Frame_Context &frame, const entt::registry &reg,
-    std::vector<GPU_Types::Surface> &surfaces,
-    std::vector<GPU_Types::Emissive_Data> &emissives) {
+    const std::vector<GPU_Types::Lookup> &lookups,
+    const std::vector<GPU_Types::Vertex> &verticies,
+    const std::vector<uint32_t> &indicies,
+    const std::vector<GPU_Types::Surface> &surfaces,
+    const std::vector<GPU_Types::Emissive_Data> &emissives,
+    const size_t n_packets) {
+  /* Dynamically resize buffers */
+  const size_t factor = n_packets == 0 ? 1 : n_packets,
+               buff_lookups_len = factor * sizeof(GPU_Types::Lookup),
+               buff_verticies_len = factor * sizeof(GPU_Types::Vertex),
+               buff_indicies_len = factor * sizeof(uint32_t),
+               buff_surfaces_len = factor * sizeof(GPU_Types::Surface),
+               buff_emissives_len = factor * sizeof(GPU_Types::Emissive_Data);
+
+  Utils::dynamic_resize(m_device.get(), frame.buff_lookups, buff_lookups_len);
+  Utils::dynamic_resize(m_device.get(), frame.buff_verticies,
+                        buff_verticies_len);
+  Utils::dynamic_resize(m_device.get(), frame.buff_indicies, buff_indicies_len);
+  Utils::dynamic_resize(m_device.get(), frame.buff_surfaces, buff_surfaces_len);
+  Utils::dynamic_resize(m_device.get(), frame.buff_emissives,
+                        buff_emissives_len);
+
+  /* Get camera */
   const auto &_cam_view = reg.view<Components::Camera>();
   const Components::Camera &_cam =
       _cam_view.empty() ? Components::Camera{}
@@ -336,19 +359,41 @@ void GPU_Interface::subfn_render_load_buffers(
   cam.dir = Utils::pack(dir);
   cam.fl = 1.0f / (2.0f * tanf((_cam.fov * M_PI / 180.0f) / 2.0f));
 
-  std::memcpy(frame.buff_rt_params->contents(), &frame.rt_config,
+  /* Load buffers */
+  std::memcpy(frame.buff_rt_config->contents(), &frame.rt_config,
               sizeof(GPU_Types::Raytracing_Config));
   std::memcpy(frame.buff_cam->contents(), &cam, sizeof(GPU_Types::Camera));
+  std::memcpy(frame.buff_lookups->contents(), lookups.data(),
+              lookups.size() * sizeof(GPU_Types::Lookup));
+  std::memcpy(frame.buff_verticies->contents(), verticies.data(),
+              verticies.size() * sizeof(GPU_Types::Vertex));
+  std::memcpy(frame.buff_indicies->contents(), indicies.data(),
+              indicies.size() * sizeof(uint32_t));
   std::memcpy(frame.buff_surfaces->contents(), surfaces.data(),
               surfaces.size() * sizeof(GPU_Types::Surface));
   std::memcpy(frame.buff_emissives->contents(), emissives.data(),
               emissives.size() * sizeof(GPU_Types::Emissive_Data));
 
-  frame.argt_rt->setAddress(frame.buff_rt_params->gpuAddress(), 0);
+  /* Make resident */
+  frame.rset->addAllocation(frame.buff_rt_config.get());
+  frame.rset->addAllocation(frame.buff_cam.get());
+  frame.rset->addAllocation(frame.buff_lookups.get());
+  frame.rset->addAllocation(frame.buff_verticies.get());
+  frame.rset->addAllocation(frame.buff_indicies.get());
+  frame.rset->addAllocation(frame.buff_surfaces.get());
+  frame.rset->addAllocation(frame.buff_emissives.get());
+  frame.rset->addAllocation(frame.tex_rt.get());
+  frame.rset->commit(); // SEG FAULT
+
+  /* Bind to argument table */
+  frame.argt_rt->setAddress(frame.buff_rt_config->gpuAddress(), 0);
   frame.argt_rt->setAddress(frame.buff_cam->gpuAddress(), 1);
   frame.argt_rt->setResource(frame.tlas->gpuResourceID(), 2);
-  frame.argt_rt->setAddress(frame.buff_surfaces->gpuAddress(), 3);
-  frame.argt_rt->setAddress(frame.buff_emissives->gpuAddress(), 4);
+  frame.argt_rt->setAddress(frame.buff_lookups->gpuAddress(), 3);
+  frame.argt_rt->setAddress(frame.buff_verticies->gpuAddress(), 4);
+  frame.argt_rt->setAddress(frame.buff_indicies->gpuAddress(), 5);
+  frame.argt_rt->setAddress(frame.buff_surfaces->gpuAddress(), 6);
+  frame.argt_rt->setAddress(frame.buff_emissives->gpuAddress(), 7);
   frame.argt_rt->setTexture(frame.tex_rt->gpuResourceID(), 0);
 }
 
@@ -439,20 +484,12 @@ void GPU_Interface::subfn_render_dispatch_rt_kernel(Frame_Context &frame) {
   const MTL::Size tg =
       MTL::Size(tg_width, std::min<NS::UInteger>(tg_height, 8), 1);
 
-  frame.rset->addAllocation(frame.buff_cam.get());
-  frame.rset->addAllocation(frame.buff_rt_params.get());
-  frame.rset->addAllocation(frame.buff_surfaces.get());
-  frame.rset->addAllocation(frame.buff_emissives.get());
-  frame.rset->addAllocation(frame.tex_rt.get());
-  frame.rset->commit();
-
   m_ce_rt->dispatchThreads(grid, tg);
   m_ce_rt->endEncoding();
   m_ce_rt.smart_release();
 }
 
-void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame,
-                                                 const bool build_tlas) {
+void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame) {
   frame.cmd_buff->endCommandBuffer();
 
   MTL_Unique<MTL4::CommitOptions> commit_opts =
@@ -460,8 +497,7 @@ void GPU_Interface::subfn_render_submit_cmd_buff(Frame_Context &frame,
   Event<uint32_t> &ev_gpu_completed = m_ev_gpu_completed;
   const uint32_t slot = m_slot;
   const std::function<void(MTL4::CommitFeedback *)> cb_feedback(
-      [&frame, &ev_gpu_completed, slot,
-       build_tlas](MTL4::CommitFeedback *feedback) {
+      [&frame, &ev_gpu_completed, slot](MTL4::CommitFeedback *feedback) {
         const bool succeeded = !feedback || feedback->error() == nullptr;
         frame.cmd_alloc->reset();
         {
@@ -513,12 +549,16 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   frame.revision = packet_revision;
 
   const size_t n_packets = packets.size();
+  std::vector<GPU_Types::Lookup> lookups;
+  std::vector<GPU_Types::Vertex> verticies;
+  std::vector<uint32_t> indicies;
   std::vector<GPU_Types::Surface> surfaces;
   std::vector<GPU_Types::Emissive_Data> emissives;
-  subfn_render_stage_buffers(frame, n_packets, build_tlas);
-  subfn_render_process_packets(frame, packets, packet_mtx, build_tlas, surfaces,
-                               emissives);
-  subfn_render_load_buffers(frame, reg, surfaces, emissives);
+  subfn_render_process_packets(frame, packets, packet_mtx, build_tlas, lookups,
+                               verticies, indicies, surfaces, emissives,
+                               n_packets);
+  subfn_render_write_arguments(frame, reg, lookups, verticies, indicies,
+                               surfaces, emissives, n_packets);
 
   if (build_tlas)
     subfn_render_build_tlas(frame);
@@ -578,7 +618,7 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   m_ce_rndr->endEncoding();
   m_ce_rndr.smart_release();
 
-  subfn_render_submit_cmd_buff(frame, build_tlas);
+  subfn_render_submit_cmd_buff(frame);
 
   m_cmd_q->signalDrawable(frame.drawable.get());
   frame.drawable->present();

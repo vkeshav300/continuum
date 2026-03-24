@@ -13,8 +13,11 @@ inline float3 format_color(const float3 color) {
     constant CTNM::RHI::GPU_Types::Raytracing_Config &config [[buffer(0)]],
     constant CTNM::RHI::GPU_Types::Camera &cam [[buffer(1)]],
     raytracing::instance_acceleration_structure tlas [[buffer(2)]],
-    constant CTNM::RHI::GPU_Types::Surface *surfaces [[buffer(3)]],
-    constant CTNM::RHI::GPU_Types::Emissive_Data *emissives [[buffer(4)]],
+    constant CTNM::RHI::GPU_Types::Lookup *lookups [[buffer(3)]],
+    constant CTNM::RHI::GPU_Types::Vertex *verticies [[buffer(4)]],
+    constant uint *indicies [[buffer(5)]],
+    constant CTNM::RHI::GPU_Types::Surface *surfaces [[buffer(6)]],
+    constant CTNM::RHI::GPU_Types::Emissive_Data *emissives [[buffer(7)]],
     texture2d<float, access::write> out_tex [[texture(0)]],
     uint2 tid [[thread_position_in_grid]]) {
   /* Ensure thread is inside rendered area */

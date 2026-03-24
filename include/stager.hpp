@@ -19,7 +19,7 @@ public:
   Stager() = default;
   ~Stager() = default;
 
-  void stage(RHI::GPU_Context &gpu_context, entt::registry &reg);
+  void stage(RHI::GPU_Context &gpu_context, const entt::registry &reg);
 
   RHI::packet_umap &get_render_packets();
   void decommission_packet(const entt::entity e);

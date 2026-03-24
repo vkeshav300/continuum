@@ -52,8 +52,12 @@ struct Vertex {
   vec_pf3 p, n;
 };
 
-struct Instance_Metadata {
-  uint32_t offset_vertex, offset_index;
+struct Range {
+  uint32_t offset, length;
+};
+
+struct Lookup {
+  Range rng_vertex, rng_index, rng_surface;
 };
 
 } // namespace CTNM::RHI::GPU_Types

@@ -25,7 +25,7 @@ struct Physics {
 
 struct Vertex {
   Math::vec_f3 p = {0.0f, 0.0f, 0.0f}, // Position
-      n = {0.0f, 0.0f, 0.0f};          // Normal
+      n = {0.0f, 0.0f, 0.0f};          // Normals (used in Render_Packet)
 };
 
 struct Mesh {

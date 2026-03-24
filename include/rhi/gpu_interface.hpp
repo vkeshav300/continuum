@@ -39,11 +39,14 @@ struct Frame_Context {
   MTL_Unique<MTL::Buffer> buff_scratch = nullptr;
   MTL_Unique<MTL::Buffer> buff_asi = nullptr;
   MTL_Unique<MTL::Buffer> buff_asi_ct = nullptr;
-  MTL_Unique<MTL::Buffer> buff_asi_metadata = nullptr;
+
+  MTL_Unique<MTL::Buffer> buff_rt_config = nullptr;
+  MTL_Unique<MTL::Buffer> buff_cam = nullptr;
+  MTL_Unique<MTL::Buffer> buff_lookups = nullptr;
+  MTL_Unique<MTL::Buffer> buff_verticies = nullptr;
+  MTL_Unique<MTL::Buffer> buff_indicies = nullptr;
   MTL_Unique<MTL::Buffer> buff_surfaces = nullptr;
   MTL_Unique<MTL::Buffer> buff_emissives = nullptr;
-  MTL_Unique<MTL::Buffer> buff_cam = nullptr;
-  MTL_Unique<MTL::Buffer> buff_rt_params = nullptr;
 
   MTL_Unique<MTL::TextureDescriptor> tex_rt_desc = nullptr;
   MTL_Unique<MTL::Texture> tex_rt = nullptr;
@@ -99,22 +102,26 @@ private:
 
   void free_current_frame(const bool end_cmd_buff);
 
-  void subfn_render_stage_buffers(Frame_Context &frame, const size_t n_packets,
-                                  const bool build_tlas);
   void subfn_render_process_packets(
       Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
-      const bool build_tlas, std::vector<GPU_Types::Surface> &surfaces,
-      std::vector<GPU_Types::Emissive_Data> &emissives);
+      const bool build_tlas, std::vector<GPU_Types::Lookup> &lookups,
+      std::vector<GPU_Types::Vertex> &verticies,
+      std::vector<uint32_t> &indicies,
+      std::vector<GPU_Types::Surface> &surfaces,
+      std::vector<GPU_Types::Emissive_Data> &emissives, const size_t n_packets);
+  void subfn_render_write_arguments(
+      Frame_Context &frame, const entt::registry &reg,
+      const std::vector<GPU_Types::Lookup> &lookups,
+      const std::vector<GPU_Types::Vertex> &verticies,
+      const std::vector<uint32_t> &indicies,
+      const std::vector<GPU_Types::Surface> &surfaces,
+      const std::vector<GPU_Types::Emissive_Data> &emissives,
+      const size_t n_packets);
   void subfn_render_build_tlas(Frame_Context &frame);
   void subfn_render_refit_tlas(Frame_Context &frame);
   bool subfn_render_validate_drawable_texture(Frame_Context &frame);
-  void
-  subfn_render_load_buffers(Frame_Context &frame, const entt::registry &reg,
-                            std::vector<GPU_Types::Surface> &surfaces,
-                            std::vector<GPU_Types::Emissive_Data> &emissives);
   void subfn_render_dispatch_rt_kernel(Frame_Context &frame);
-  void subfn_render_submit_cmd_buff(Frame_Context &Frame,
-                                    const bool build_tlas);
+  void subfn_render_submit_cmd_buff(Frame_Context &Frame);
 };
 
 }; // namespace CTNM::RHI
