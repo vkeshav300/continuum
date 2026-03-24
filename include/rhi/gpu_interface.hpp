@@ -102,6 +102,7 @@ private:
 
   void free_current_frame(const bool end_cmd_buff);
 
+  bool subfn_render_validate_drawable_texture(Frame_Context &frame);
   void subfn_render_process_packets(
       Frame_Context &frame, const packet_umap &packets, std::mutex &packet_mtx,
       const bool build_tlas, std::vector<GPU_Types::Lookup> &lookups,
@@ -109,17 +110,16 @@ private:
       std::vector<uint32_t> &indicies,
       std::vector<GPU_Types::Surface> &surfaces,
       std::vector<GPU_Types::Emissive_Data> &emissives, const size_t n_packets);
-  void subfn_render_write_arguments(
+  void subfn_render_build_tlas(Frame_Context &frame);
+  void subfn_render_refit_tlas(Frame_Context &frame);
+  void subfn_render_write_rt_arguments(
       Frame_Context &frame, const entt::registry &reg,
       const std::vector<GPU_Types::Lookup> &lookups,
       const std::vector<GPU_Types::Vertex> &verticies,
       const std::vector<uint32_t> &indicies,
       const std::vector<GPU_Types::Surface> &surfaces,
       const std::vector<GPU_Types::Emissive_Data> &emissives,
-      const size_t n_packets);
-  void subfn_render_build_tlas(Frame_Context &frame);
-  void subfn_render_refit_tlas(Frame_Context &frame);
-  bool subfn_render_validate_drawable_texture(Frame_Context &frame);
+      const size_t _n_packets);
   void subfn_render_dispatch_rt_kernel(Frame_Context &frame);
   void subfn_render_submit_cmd_buff(Frame_Context &Frame);
 };

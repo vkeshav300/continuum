@@ -324,7 +324,7 @@ void GPU_Interface::subfn_render_process_packets(
   frame.rset->addAllocation(frame.buff_asi.get());
 }
 
-void GPU_Interface::subfn_render_write_arguments(
+void GPU_Interface::subfn_render_write_rt_arguments(
     Frame_Context &frame, const entt::registry &reg,
     const std::vector<GPU_Types::Lookup> &lookups,
     const std::vector<GPU_Types::Vertex> &verticies,
@@ -333,20 +333,17 @@ void GPU_Interface::subfn_render_write_arguments(
     const std::vector<GPU_Types::Emissive_Data> &emissives,
     const size_t n_packets) {
   /* Dynamically resize buffers */
-  const size_t factor = n_packets == 0 ? 1 : n_packets,
-               buff_lookups_len = factor * sizeof(GPU_Types::Lookup),
-               buff_verticies_len = factor * sizeof(GPU_Types::Vertex),
-               buff_indicies_len = factor * sizeof(uint32_t),
-               buff_surfaces_len = factor * sizeof(GPU_Types::Surface),
-               buff_emissives_len = factor * sizeof(GPU_Types::Emissive_Data);
+  const size_t b = n_packets == 0 ? 1 : 0;
 
-  Utils::dynamic_resize(m_device.get(), frame.buff_lookups, buff_lookups_len);
+  Utils::dynamic_resize(m_device.get(), frame.buff_lookups, lookups.size() + b);
   Utils::dynamic_resize(m_device.get(), frame.buff_verticies,
-                        buff_verticies_len);
-  Utils::dynamic_resize(m_device.get(), frame.buff_indicies, buff_indicies_len);
-  Utils::dynamic_resize(m_device.get(), frame.buff_surfaces, buff_surfaces_len);
+                        verticies.size() + b);
+  Utils::dynamic_resize(m_device.get(), frame.buff_indicies,
+                        indicies.size() + b);
+  Utils::dynamic_resize(m_device.get(), frame.buff_surfaces,
+                        surfaces.size() + b);
   Utils::dynamic_resize(m_device.get(), frame.buff_emissives,
-                        buff_emissives_len);
+                        emissives.size() + b);
 
   /* Get camera */
   const auto &_cam_view = reg.view<Components::Camera>();
@@ -383,7 +380,7 @@ void GPU_Interface::subfn_render_write_arguments(
   frame.rset->addAllocation(frame.buff_surfaces.get());
   frame.rset->addAllocation(frame.buff_emissives.get());
   frame.rset->addAllocation(frame.tex_rt.get());
-  frame.rset->commit(); // SEG FAULT
+  frame.rset->commit();
 
   /* Bind to argument table */
   frame.argt_rt->setAddress(frame.buff_rt_config->gpuAddress(), 0);
@@ -543,6 +540,11 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   Frame_Context &frame = m_frame_contexts[m_slot];
   frame.rset->commit(); // Render_Packet allocations need to be commited
 
+  if (!subfn_render_validate_drawable_texture(frame)) {
+    free_current_frame(true);
+    return;
+  }
+
   /* Process top level acceleration structure (TLAS) */
   const bool build_tlas =
       packet_revision != frame.revision || !frame.tlas_built;
@@ -557,8 +559,6 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   subfn_render_process_packets(frame, packets, packet_mtx, build_tlas, lookups,
                                verticies, indicies, surfaces, emissives,
                                n_packets);
-  subfn_render_write_arguments(frame, reg, lookups, verticies, indicies,
-                               surfaces, emissives, n_packets);
 
   if (build_tlas)
     subfn_render_build_tlas(frame);
@@ -574,11 +574,8 @@ void GPU_Interface::render(const packet_umap &packets, std::mutex &packet_mtx,
   m_ce_as.smart_release();
 
   /* GPU kernel function dispatching */
-  if (!subfn_render_validate_drawable_texture(frame)) {
-    free_current_frame(true);
-    return;
-  }
-
+  subfn_render_write_rt_arguments(frame, reg, lookups, verticies, indicies,
+                                  surfaces, emissives, n_packets);
   if (MTL4::ComputeCommandEncoder *ce_rt =
           frame.cmd_buff->computeCommandEncoder())
     m_ce_rt = ce_rt->retain();
