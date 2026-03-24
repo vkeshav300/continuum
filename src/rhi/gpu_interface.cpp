@@ -333,18 +333,16 @@ void GPU_Interface::subfn_render_write_rt_arguments(
     const std::vector<GPU_Types::Emissive_Data> &emissives,
     const size_t n_packets) {
   /* Dynamically resize buffers */
-  const size_t b = n_packets == 0 ? 1 : 0;
-
   Utils::dynamic_resize<GPU_Types::Lookup>(m_device.get(), frame.buff_lookups,
-                                           lookups.size() + b);
+                                           lookups.size());
   Utils::dynamic_resize<GPU_Types::Vertex>(m_device.get(), frame.buff_verticies,
-                                           verticies.size() + b);
+                                           verticies.size());
   Utils::dynamic_resize<uint32_t>(m_device.get(), frame.buff_indicies,
-                                  indicies.size() + b);
+                                  indicies.size());
   Utils::dynamic_resize<GPU_Types::Surface>(m_device.get(), frame.buff_surfaces,
-                                            surfaces.size() + b);
+                                            surfaces.size());
   Utils::dynamic_resize<GPU_Types::Emissive_Data>(
-      m_device.get(), frame.buff_emissives, emissives.size() + b);
+      m_device.get(), frame.buff_emissives, emissives.size());
 
   /* Get camera */
   const auto &_cam_view = reg.view<Components::Camera>();
