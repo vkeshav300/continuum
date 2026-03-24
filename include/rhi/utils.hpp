@@ -24,9 +24,11 @@ inline GPU_Types::Range make_range(const size_t start, const size_t end) {
                           static_cast<uint32_t>(end - start)};
 }
 
+template <typename T>
 inline void dynamic_resize(
-    MTL::Device *device, MTL_Unique<MTL::Buffer> &buffer, const size_t &size,
+    MTL::Device *device, MTL_Unique<MTL::Buffer> &buffer, const size_t &count,
     const NS::UInteger resource_storage_mode = MTL::ResourceStorageModeShared) {
+  const size_t size = count * sizeof(T);
   if (!buffer.exists() || buffer->length() < size)
     buffer = device->newBuffer(size, resource_storage_mode);
 }
