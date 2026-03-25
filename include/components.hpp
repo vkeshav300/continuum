@@ -35,9 +35,8 @@ struct Mesh {
 };
 
 struct Surface {
-  Math::vec_f3 color, albedo;
-  float ambient, emission_strength, reflectivity, roughness, specular_power;
-  uint32_t flags;
+  Math::vec_f3 color;
+  float ambient_factor, em_strength, albedo;
 };
 
 } // namespace CTNM::Components

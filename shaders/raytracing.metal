@@ -5,10 +5,6 @@
 
 using namespace metal;
 
-inline float3 format_color(const float3 color) {
-  return clamp(color / 255.0f, 0.0f, 1.0f);
-}
-
 [[kernel]] void k_raytracer(
     constant CTNM::RHI::GPU_Types::Raytracing_Config &config [[buffer(0)]],
     constant CTNM::RHI::GPU_Types::Camera &cam [[buffer(1)]],
@@ -43,13 +39,13 @@ inline float3 format_color(const float3 color) {
   raytracing::intersector<raytracing::instancing> intersector;
   const raytracing::intersection_result<raytracing::instancing> result =
       intersector.intersect(ray, tlas);
-  float3 color = format_color(config.color_bkg);
+  float3 color = config.color_bkg;
 
   if (result.type == raytracing::intersection_type::triangle) {
     const uint iid = result.instance_id;
     // const float t = result.distance;
 
-    color = format_color(surfaces[iid].color);
+    color = surfaces[iid].color;
   }
 
   out_tex.write(float4(color, 1.0f), tid);

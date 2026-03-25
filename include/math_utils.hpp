@@ -34,4 +34,15 @@ ATTR_OVERLOADABLE inline vec_f3 cross(const vec_f3 &v1, const vec_f3 &v2) {
   return simd_cross(v1, v2);
 }
 
+ATTR_OVERLOADABLE inline float clamp(const float n, const float min,
+                                     const float max) {
+  return std::clamp(n, min, max); // For floats
+}
+
+template <typename T>
+ATTR_OVERLOADABLE inline T clamp(const T &v, const float min,
+                                  const float max) {
+  return simd_clamp(v, min, max); // For simd vectors
+}
+
 } // namespace CTNM::Math

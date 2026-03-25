@@ -38,9 +38,8 @@ struct Camera {
 };
 
 struct Surface {
-  vec_pf3 color, albedo;
-  float ambient, emission_strength, reflectivity, roughness, specular_power;
-  uint32_t flags;
+  vec_pf3 color;
+  float ambient_factor, em_strength, albedo;
 };
 
 struct Emissive_Data {
@@ -57,7 +56,7 @@ struct Range {
 };
 
 struct Lookup {
-  Range rng_vertex, rng_index, rng_surface;
+  Range rng_vertex, rng_index;
 };
 
 } // namespace CTNM::RHI::GPU_Types

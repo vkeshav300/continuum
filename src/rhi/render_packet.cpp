@@ -68,14 +68,12 @@ void Render_Packet::subfn_update_write_transform(
 void Render_Packet::subfn_update_write_surface(
     const uint32_t slot, const Components::Surface &surface) {
   AS_Context &as_context = m_as_contexts[slot];
-  as_context.surface.color = Utils::pack(surface.color);
-  as_context.surface.albedo = Utils::pack(surface.albedo);
-  as_context.surface.ambient = surface.ambient;
-  as_context.surface.emission_strength = surface.emission_strength;
-  as_context.surface.reflectivity = surface.reflectivity;
-  as_context.surface.roughness = surface.roughness;
-  as_context.surface.specular_power = surface.specular_power;
-  as_context.surface.flags = surface.flags;
+  as_context.surface.color = Utils::pack(Math::clamp(
+      surface.color / 255.0f, 0.0f, 1.0f)); // Format CPU-side since faster
+  as_context.surface.ambient_factor =
+      Math::clamp(surface.ambient_factor, 0.0f, 1.0f);
+  as_context.surface.em_strength = Math::clamp(surface.em_strength, 0.0f, 1.0f);
+  as_context.surface.albedo = Math::clamp(surface.albedo, 0.0f, 1.0f);
 }
 
 void Render_Packet::subfn_update_write_vertex_info(

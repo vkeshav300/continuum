@@ -120,7 +120,8 @@ GPU_Interface::GPU_Interface(std::shared_ptr<Window> win)
     frame.rt_config.t_max = 1000.0f;
     frame.rt_config.t_min = 1.0f;
     frame.rt_config.color_bkg = GPU_Types::vec_pf3{0.0f, 0.0f, 0.0f};
-    frame.rt_config.color_ambient = GPU_Types::vec_pf3{255.0f, 255.0f, 255.0f};
+    frame.rt_config.color_ambient = GPU_Types::vec_pf3{1.0f, 1.0f, 1.0f};
+    frame.rt_config.shadow_bias = 0.001f;
   }
 
   m_lib = m_device->newDefaultLibrary();
@@ -276,25 +277,23 @@ void GPU_Interface::subfn_render_process_packets(
     uint32_t iid = 0;
     for (auto &[_, packet] : packets) {
       const GPU_Types::Surface &surface = packet.get_surface(m_slot);
-      GPU_Types::Lookup lookup;
-      lookup.rng_surface = Utils::make_range(surfaces.size());
       surfaces.push_back(packet.get_surface(m_slot));
 
-      const size_t vtx_start = verticies.size();
+      GPU_Types::Lookup lookup;
+      const size_t vtx_start = verticies.size() - 1,
+                   ind_start = indicies.size() - 1;
       const std::vector<GPU_Types::Vertex> &p_verticies =
           packet.get_verticies(m_slot);
-      verticies.insert(verticies.end(), p_verticies.begin(), p_verticies.end());
-      lookup.rng_vertex = Utils::make_range(vtx_start, verticies.size());
-
-      const size_t ind_start = indicies.size();
       const std::vector<uint32_t> &p_indicies = packet.get_indicies(m_slot);
+      verticies.insert(verticies.end(), p_verticies.begin(), p_verticies.end());
       indicies.insert(indicies.end(), p_indicies.begin(), p_indicies.end());
-      lookup.rng_index = Utils::make_range(ind_start, indicies.size());
+      lookup.rng_vertex = Utils::make_range(vtx_start, verticies.size() - 1);
+      lookup.rng_index = Utils::make_range(ind_start, indicies.size() - 1);
 
       lookups.push_back(lookup);
 
       const MTL::PackedFloat4x3 &transform = packet.get_transform(m_slot);
-      if (surface.emission_strength != 0) {
+      if (surface.em_strength != 0) {
         emissives.emplace_back(
             iid, transform[3]); // World space position stored in col3
         frame.rt_config.emissive_count++;
